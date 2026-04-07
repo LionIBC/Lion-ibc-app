@@ -1,5 +1,5 @@
-import { newClientSchema } from '../../../lib/validation';
-import { sendNotification } from '../../../lib/email';
+import { newClientSchema } from '../../lib/validation';
+import { sendNotification } from '../../lib/email';
 
 export async function POST(request) {
   try {
