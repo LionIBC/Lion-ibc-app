@@ -14,6 +14,20 @@ export default function Home() {
         </p>
         <div className="actions">
           <Link href="/neukunde" className="button">Formular öffnen</Link>
+
+            <a href="/mitarbeiter" 
+            style={{
+  display: "inline-block",
+  marginTop: "10px",
+  padding: "10px 16px",
+  background: "#000",
+  color: "#fff",
+  borderRadius: "8px",
+  textDecoration: "none"
+}}>
+  Mitarbeiter anlegen
+</a>
+
         </div>
       </section>
 
