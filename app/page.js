@@ -12,49 +12,63 @@ export default function Home() {
           Meldeturni. Nach dem Absenden erhalten Sie eine strukturierte E-Mail an
           info@lion-ibc.com.
         </p>
-        <div className="actions">
-          <Link href="/neukunde" className="button">Formular öffnen</Link>
-
-            <a href="/mitarbeiter" 
-            style={{
-  display: "inline-block",
-  marginTop: "10px",
-  padding: "10px 16px",
-  background: "#000",
-  color: "#fff",
-  borderRadius: "8px",
-  textDecoration: "none"
+       <div style={{
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "20px",
+  marginTop: "30px"
 }}>
-  Mitarbeiter anlegen
-</a>
 
-        </div>
+  {/* NEUKUNDE */}
+  <div style={{
+    padding: "20px",
+    border: "1px solid #eee",
+    borderRadius: "12px",
+    background: "#fafafa"
+  }}>
+    <h3>Neukunde</h3>
+    <p style={{ fontSize: "14px", color: "#666" }}>
+      Erfassen Sie hier neue Mandanten und übermitteln Sie alle relevanten Unternehmensdaten strukturiert und digital.
+    </p>
+    <Link href="/neukunde" className="button">
+      Neukunde starten
+    </Link>
+  </div>
+
+  {/* BESTEHENDER MANDANT */}
+  <div style={{
+    padding: "20px",
+    border: "1px solid #eee",
+    borderRadius: "12px",
+    background: "#fafafa"
+  }}>
+    <h3>Bestehender Mandant</h3>
+   <p style={{ fontSize: "14px", color: "#666" }}>
+  Mitarbeiter anlegen, Unterlagen übermitteln und digitale Prozesse nutzen.
+  <br />
+  <span style={{ fontSize: "12px", color: "#999" }}>
+    Geschützter Zugang wird bereitgestellt.
+  </span>
+</p>
+
+    <a href="/mitarbeiter" style={{
+      display: "inline-block",
+      marginTop: "10px",
+      padding: "10px 16px",
+      background: "#000",
+      color: "#fff",
+      borderRadius: "8px",
+      textDecoration: "none"
+    }}>
+      Mandantenbereich öffnen
+    </a>
+  </div>
+
+</div>
+
       </section>
 
-      <section className="grid">
-        <div className="card lightCard">
-          <h2>In Version 1.1 enthalten</h2>
-          <ul className="clean darkList">
-            <li>Rechtsform-Logik für Inhaber, Gesellschafter und Geschäftsführer</li>
-            <li>Unternehmensnummer, Betriebsnummer und BG-PIN</li>
-            <li>Leistungswünsche mit Startdatum</li>
-            <li>Umsatzsteuer- und Lohnsteuer-Turnus</li>
-            <li>DSGVO-Pflichtfeld und definierte Pflichtfelder</li>
-            <li>direkte E-Mail-Benachrichtigung an info@lion-ibc.com</li>
-          </ul>
-        </div>
-
-        <div className="card lightCard">
-          <h2>Für den nächsten Ausbauschritt vorbereitet</h2>
-          <ul className="clean darkList">
-            <li>Mitarbeiterformular</li>
-            <li>Dateiuploads für Unterlagen</li>
-            <li>Admin-Bereich mit Statusübersicht</li>
-            <li>Datenbank oder eigener Server</li>
-            <li>personalisierte Kundenlinks</li>
-          </ul>
-        </div>
-      </section>
+    
     </main>
   );
 }
