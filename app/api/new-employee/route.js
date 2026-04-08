@@ -4,7 +4,11 @@ import { sendNotification } from '../../../lib/email';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const parsed = newEmployeeSchema.safeParse(body);
+console.log('BODY:', body);
+
+const parsed = newEmployeeSchema.safeParse(body);
+console.log('PARSED SUCCESS:', parsed.success); if (!parsed.success) {
+  console.log('PARSED ERROR:', parsed.error.flatten()); }
 
     if (!parsed.success) {
       return Response.json({ message: 'Bitte alle Pflichtfelder korrekt ausfüllen.' }, { status: 400 });
