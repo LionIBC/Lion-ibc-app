@@ -151,12 +151,15 @@ export default function HomePage() {
 
     <a href="/mitarbeiter" style={secondaryButton}>
       Zum Bereich
-    </a>
-  </div>
+ </a>
+</div>
 
-    </main>
-  );
+</div>
+</section>
+</main>
+);
 }
+
 
 const primaryButton = {
   display: 'inline-flex',
