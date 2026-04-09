@@ -1,4 +1,3 @@
-
 import { sendNotification } from '../../../lib/email';
 
 export async function POST(request) {
@@ -7,14 +6,15 @@ export async function POST(request) {
 
     const mail = await sendNotification({
       subject: 'Neue Unternehmensgründung',
-      title: 'Neue Anfrage: Unternehmensgründung',
+      title: 'Neue Anfrage Unternehmensgründung',
       data: body
     });
 
     return Response.json({
-      message: 'Gründungsdaten erfolgreich übermittelt.'
+      message: mail.skipped
+        ? 'Die Gründungsdaten wurden übermittelt. Der E-Mail-Versand ist noch nicht konfiguriert.'
+        : 'Die Gründungsdaten wurden erfolgreich übermittelt.'
     });
-
   } catch (error) {
     console.error(error);
 
