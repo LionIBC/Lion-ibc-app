@@ -15,15 +15,11 @@ export default function HomePage() {
           margin: '0 auto'
         }}
       >
-        <div style={{ marginBottom: '36px' }}>
+        <div style={{ marginBottom: '40px' }}>
           <img
             src="/logo.png"
             alt="Lion IBC Logo"
-            style={{
-              height: '140px',
-              width: 'auto',
-              display: 'block'
-            }}
+            style={{ height: '160px', width: 'auto', display: 'block' }}
           />
         </div>
 
@@ -49,117 +45,134 @@ export default function HomePage() {
               marginBottom: '20px'
             }}
           >
-            LION IBC · Digital Mandantenportal
+            LION IBC DIGITAL · Mandantenportal
           </div>
 
           <h1
             style={{
-              fontSize: '52px',
-              lineHeight: 1.05,
-              letterSpacing: '-0.02em',
+              fontSize: '48px',
+              lineHeight: 1.1,
               color: '#101828',
-              margin: '0 0 18px'
+              margin: '0 0 20px'
             }}
           >
-           Ihr Zugang zur digitalen Zusammenarbeit mit Lion IBC
-          
+            Ihr Zugang zur digitalen Zusammenarbeit mit Lion IBC
           </h1>
 
-         <div
-  style={{
-    fontSize: '18px',
-    color: '#475467',
-    maxWidth: '780px',
-    marginBottom: '30px',
-    lineHeight: 1.7
-  }}
->
+          <div
+            style={{
+              fontSize: '18px',
+              color: '#475467',
+              maxWidth: '780px',
+              marginBottom: '30px',
+              lineHeight: 1.7
+            }}
+          >
+            <p>
+              Mit Lion IBC Digital steuern wir die Zusammenarbeit mit unseren
+              Mandanten effizient, strukturiert und ortsunabhängig.
+            </p>
 
-  <p>
-    Mit Lion IBC Digital steuern wir die Zusammenarbeit mit unseren Mandanten effizient, strukturiert und ortsunabhängig.
-  </p>
+            <p style={{ marginTop: '16px' }}>
+              Durch unsere digitalen Prozesse können wir Anfragen schneller
+              bearbeiten, Fehler reduzieren und eine einfache sowie klare
+              Kommunikation gewährleisten.
+            </p>
 
-  <p style={{ marginTop: '16px' }}>
-    Durch unsere digitalen Prozesse können wir Anfragen schneller bearbeiten, Fehler reduzieren und eine einfache sowie klare Kommunikation gewährleisten.
-  </p>
+            <div style={{ marginTop: '24px' }}>
+              <strong style={{ display: 'block', marginBottom: '6px' }}>
+                Für neue Mandanten
+              </strong>
+              <span>
+                Starten Sie die Zusammenarbeit mit uns digital und strukturiert.
+                Übermitteln Sie alle relevanten Informationen einfach und
+                vollständig – wir kümmern uns um den Rest.
+              </span>
+            </div>
 
-  {/* Neukunden */}
-  <div style={{ marginTop: '24px' }}>
-    <strong style={{ display: 'block', marginBottom: '6px' }}>
-      Für neue Mandanten
-    </strong>
-    <span>
-      Starten Sie die Zusammenarbeit mit uns digital und strukturiert.
-      Übermitteln Sie alle relevanten Informationen einfach und vollständig – wir kümmern uns um den Rest.
-    </span>
-  </div>
+            <div style={{ marginTop: '20px' }}>
+              <strong style={{ display: 'block', marginBottom: '6px' }}>
+                Für bestehende Mandanten
+              </strong>
+              <span>
+                Nutzen Sie unser Portal zur Erfassung von Mitarbeiterdaten und
+                weiteren Prozessen. Unsere digitalen Systeme ermöglichen eine
+                schnelle, fehlerarme und effiziente Bearbeitung.
+              </span>
+            </div>
+          </div>
 
-  {/* Bestandskunden */}
-  <div style={{ marginTop: '20px' }}>
-    <strong style={{ display: 'block', marginBottom: '6px' }}>
-      Für bestehende Mandanten
-    </strong>
-    <span>
-      Nutzen Sie unser Portal zur Erfassung von Mitarbeiterdaten und weiteren Prozessen.
-      Unsere digitalen Systeme ermöglichen eine schnelle, fehlerarme und effiziente Bearbeitung.
-    </span>
-  </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: '20px',
+              flexWrap: 'wrap',
+              marginTop: '30px'
+            }}
+          >
+            <div
+              style={{
+                flex: '1',
+                minWidth: '260px',
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '16px',
+                padding: '20px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+              }}
+            >
+              <h3 style={{ marginBottom: '10px' }}>Neukunde</h3>
 
-</div>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: '#667085',
+                  marginBottom: '20px'
+                }}
+              >
+                Starten Sie die Zusammenarbeit digital und übermitteln Sie alle
+                relevanten Informationen strukturiert.
+              </p>
 
-         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '30px' }}>
+              <Link href="/neukunde" style={primaryButton}>
+                Neukunde starten
+              </Link>
+            </div>
 
-  {/* Neukunde Box */}
-  <div
-    style={{
-      flex: '1',
-      minWidth: '260px',
-      background: '#ffffff',
-      border: '1px solid #e5e7eb',
-      borderRadius: '16px',
-      padding: '20px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
-    }}
-  >
-    <h3 style={{ marginBottom: '10px' }}>Neukunde</h3>
-    <p style={{ fontSize: '14px', color: '#667085', marginBottom: '20px' }}>
-      Starten Sie die Zusammenarbeit digital und übermitteln Sie alle relevanten Informationen strukturiert.
-    </p>
+            <div
+              style={{
+                flex: '1',
+                minWidth: '260px',
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '16px',
+                padding: '20px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+              }}
+            >
+              <h3 style={{ marginBottom: '10px' }}>Bestandskunde</h3>
 
-    <a href="/neukunde" style={primaryButton}>
-      Neukunde starten
-    </a>
-  </div>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: '#667085',
+                  marginBottom: '20px'
+                }}
+              >
+                Mitarbeiter erfassen und laufende Prozesse digital und
+                effizient abwickeln.
+              </p>
 
-
-  {/* Bestandskunde Box */}
-  <div
-    style={{
-      flex: '1',
-      minWidth: '260px',
-      background: '#ffffff',
-      border: '1px solid #e5e7eb',
-      borderRadius: '16px',
-      padding: '20px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
-    }}
-  >
-    <h3 style={{ marginBottom: '10px' }}>Bestandskunde</h3>
-    <p style={{ fontSize: '14px', color: '#667085', marginBottom: '20px' }}>
-      Mitarbeiter erfassen und laufende Prozesse digital und effizient abwickeln.
-    </p>
-
-    <a href="/mitarbeiter" style={secondaryButton}>
-      Zum Bereich
- </a>
-</div>
-
-</div>
-</section>
-</main>
-);
+              <Link href="/mitarbeiter" style={secondaryButton}>
+                Zum Bereich
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }
-
 
 const primaryButton = {
   display: 'inline-flex',
@@ -188,6 +201,5 @@ const secondaryButton = {
   fontWeight: '600',
   fontSize: '16px',
   border: '1px solid #d0d5dd',
-  minWidth: '320px'
+  minWidth: '220px'
 };
-
