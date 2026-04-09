@@ -1,17 +1,20 @@
-import { newEmployeeSchema } from '../../../lib/validation';
-import { sendNotification } from '../../../lib/email';
+import { newEmployeeSchema } from '../../../../lib/validation'; import { sendNotification } from '../../../../lib/email';
 
 export async function POST(request) {
   try {
     const body = await request.json();
-console.log('BODY:', body);
-
-const parsed = newEmployeeSchema.safeParse(body);
-console.log('PARSED SUCCESS:', parsed.success); if (!parsed.success) {
-  console.log('PARSED ERROR:', parsed.error.flatten()); }
+    const parsed = newEmployeeSchema.safeParse(body);
 
     if (!parsed.success) {
-      return Response.json({ message: 'Bitte alle Pflichtfelder korrekt ausfüllen.' }, { status: 400 });
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+
+      return Response.json(
+        {
+          message: 'Bitte prüfen Sie die markierten Felder.',
+          fieldErrors
+        },
+        { status: 400 }
+      );
     }
 
     const mail = await sendNotification({
@@ -23,9 +26,17 @@ console.log('PARSED SUCCESS:', parsed.success); if (!parsed.success) {
     return Response.json({
       message: mail.skipped
         ? 'Die Daten wurden validiert. E-Mail-Versand ist noch nicht konfiguriert.'
-        : 'Der neue Mitarbeiter wurde erfolgreich übermittelt.'
+        : 'Der neue Mitarbeiter wurde erfolgreich übermittelt.',
+      fieldErrors: {}
     });
-  } catch {
-    return Response.json({ message: 'Interner Serverfehler.' }, { status: 500 });
+  } catch (error) {
+    return Response.json(
+      {
+        message: 'Interner Serverfehler.',
+        fieldErrors: {}
+      },
+      { status: 500 }
+    );
   }
 }
+
