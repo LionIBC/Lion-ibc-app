@@ -68,42 +68,131 @@ const initialState = {
 const arbeitstageOptionen = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const einstellungsarten = ['Minijob', 'Midijob', 'Werkstudent', 'Azubi', 'Arbeitnehmer', 'geschäftsführender Gesellschafter', 'Rentner'];
 
-function InputField({ id, label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }) {
+function InputField({
+  id,
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required = false,
+  placeholder = '',
+  hint = '',
+  error = ''
+}) {
   return (
     <div className="field">
-      <label htmlFor={id}>{label}{required ? ' *' : ''}</label>
-      <input id={id} type={type} value={value} onChange={onChange} placeholder={placeholder} required={required} />
-      {hint ? <span className="hint">{hint}</span> : null}
+      <label htmlFor={id}>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        style={error ? { borderColor: '#dc2626', background: '#fef2f2' } : {}}
+      />
+
+      {error ? (
+        <span className="hint" style={{ color: '#dc2626' }}>
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="hint">{hint}</span>
+      ) : null}
     </div>
   );
 }
 
-function SelectField({ id, label, value, onChange, options, required = false, hint = '' }) {
+
+function SelectField({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  required = false,
+  hint = '',
+  error = ''
+}) {
   return (
     <div className="field">
-      <label htmlFor={id}>{label}{required ? ' *' : ''}</label>
-      <select id={id} value={value} onChange={onChange} required={required}>
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      <label htmlFor={id}>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+
+      <select
+        id={id}
+        value={value}
+        onChange={onChange}
+        required={required}
+        style={error ? { borderColor: '#dc2626', background: '#fef2f2' } : {}}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
       </select>
-      {hint ? <span className="hint">{hint}</span> : null}
+
+      {error ? (
+        <span className="hint" style={{ color: '#dc2626' }}>
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="hint">{hint}</span>
+      ) : null}
     </div>
   );
 }
 
-function TextAreaField({ id, label, value, onChange, required = false, placeholder = '', hint = '' }) {
+
+function TextAreaField({
+  id,
+  label,
+  value,
+  onChange,
+  required = false,
+  placeholder = '',
+  hint = '',
+  error = ''
+}) {
   return (
     <div className="field spanTwo">
-      <label htmlFor={id}>{label}{required ? ' *' : ''}</label>
-      <textarea id={id} value={value} onChange={onChange} placeholder={placeholder} />
-      {hint ? <span className="hint">{hint}</span> : null}
+      <label htmlFor={id}>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+
+      <textarea
+        id={id}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        style={error ? { borderColor: '#dc2626', background: '#fef2f2' } : {}}
+      />
+
+      {error ? (
+        <span className="hint" style={{ color: '#dc2626' }}>
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="hint">{hint}</span>
+      ) : null}
     </div>
   );
 }
+
 
 export default function MitarbeiterPage() {
   const [form, setForm] = useState(initialState);
   const [status, setStatus] = useState(null);
   const [sending, setSending] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const isMinijob = form.einstellungsart === 'Minijob';
   const isMidijob = form.einstellungsart === 'Midijob';
@@ -170,8 +259,16 @@ export default function MitarbeiterPage() {
   }, [form, isMinijob, isMidijob]);
 
   function update(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
+  setForm((current) => ({ ...current, [key]: value }));
+
+  setFieldErrors((current) => {
+    if (!current[key]) return current;
+    const next = { ...current };
+    delete next[key];
+    return next;
+  });
+}
+
 
   function toggleArbeitstag(tag) {
     setForm((current) => ({
@@ -182,31 +279,35 @@ export default function MitarbeiterPage() {
     }));
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSending(true);
-    setStatus(null);
+async function handleSubmit(e) {
+  e.preventDefault();
+  setSending(true);
+  setStatus(null);
+  setFieldErrors({});
 
-    const payload = { ...form, warnungen: hinweise };
+  const payload = { ...form, warnungen: hinweise };
 
-    const res = await fetch('/api/new-employee', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+  const res = await fetch('/api/new-employee', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 
-    const data = await res.json();
-    setSending(false);
+  const data = await res.json();
+  setSending(false);
 
-    if (res.ok) {
-      setStatus({ type: 'success', message: data.message });
-      setForm(initialState);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      setStatus({ type: 'error', message: data.message || 'Fehler beim Senden.' });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+  if (res.ok) {
+    setStatus({ type: 'success', message: data.message });
+    setFieldErrors({});
+    setForm(initialState);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    setStatus({ type: 'error', message: data.message || 'Fehler beim Senden.' });
+    setFieldErrors(data.fieldErrors || {});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+}
+
 
   return (
     <main className="container">
@@ -243,21 +344,21 @@ export default function MitarbeiterPage() {
           <section className="sectionCard">
             <h3>1. Arbeitgeber & Einstellungsart</h3>
             <div className="formGrid">
-              <InputField id="firma" label="Arbeitgeber / Unternehmen" value={form.firma} onChange={(e) => update('firma', e.target.value)} required hint="Bitte geben Sie den Namen des Unternehmens an, für das der Mitarbeiter angelegt wird." />
-              <SelectField id="einstellungsart" label="Einstellungsart" value={form.einstellungsart} onChange={(e) => update('einstellungsart', e.target.value)} options={einstellungsarten} required hint="Es werden nur die Felder eingeblendet, die zur gewählten Beschäftigungsart passen." />
+              <InputField id="firma" label="Arbeitgeber / Unternehmen" value={form.firma} onChange={(e) => update('firma', e.target.value)} required hint="Bitte geben Sie den Namen des Unternehmens an, für das der Mitarbeiter angelegt wird." error={fieldErrors.firma?.[0]} />
+              <SelectField id="einstellungsart" label="Einstellungsart" value={form.einstellungsart} onChange={(e) => update('einstellungsart', e.target.value)} options={einstellungsarten} required hint="Es werden nur die Felder eingeblendet, die zur gewählten Beschäftigungsart passen." error={fieldErrors.einstellungsart?.[0]} />
             </div>
           </section>
 
           <section className="sectionCard">
             <h3>2. Persönliche Daten</h3>
             <div className="formGrid">
-              <InputField id="vorname" label="Vorname" value={form.vorname} onChange={(e) => update('vorname', e.target.value)} required />
-              <InputField id="nachname" label="Nachname" value={form.nachname} onChange={(e) => update('nachname', e.target.value)} required />
-              <InputField id="strasse" label="Straße / Hausnummer" value={form.strasse} onChange={(e) => update('strasse', e.target.value)} required />
-              <InputField id="plz" label="PLZ" value={form.plz} onChange={(e) => update('plz', e.target.value)} required />
-              <InputField id="ort" label="Ort" value={form.ort} onChange={(e) => update('ort', e.target.value)} required />
-              <InputField id="geburtsdatum" label="Geburtsdatum" type="date" value={form.geburtsdatum} onChange={(e) => update('geburtsdatum', e.target.value)} required />
-              <InputField id="staatsangehoerigkeit" label="Staatsangehörigkeit" value={form.staatsangehoerigkeit} onChange={(e) => update('staatsangehoerigkeit', e.target.value)} required />
+              <InputField id="vorname" label="Vorname" value={form.vorname} onChange={(e) => update('vorname', e.target.value)} required error={fieldErrors.vorname?.[0]} />
+              <InputField id="nachname" label="Nachname" value={form.nachname} onChange={(e) => update('nachname', e.target.value)} required error={fieldErrors.nachname?.[0]} />
+              <InputField id="strasse" label="Straße / Hausnummer" value={form.strasse} onChange={(e) => update('strasse', e.target.value)} required error={fieldErrors.strasse?.[0]} />
+              <InputField id="plz" label="PLZ" value={form.plz} onChange={(e) => update('plz', e.target.value)} required error={fieldErrors.plz?.[0]} />
+              <InputField id="ort" label="Ort" value={form.ort} onChange={(e) => update('ort', e.target.value)} required error={fieldErrors.ort?.[0]} />
+              <InputField id="geburtsdatum" label="Geburtsdatum" type="date" value={form.geburtsdatum} onChange={(e) => update('geburtsdatum', e.target.value)} required error={fieldErrors.geburtsdatum?.[0]} />
+              <InputField id="staatsangehoerigkeit" label="Staatsangehörigkeit" value={form.staatsangehoerigkeit} onChange={(e) => update('staatsangehoerigkeit', e.target.value)} required error={fieldErrors.staatsangehoerigkeit?.[0]} />
               <InputField id="email" label="E-Mail-Adresse" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} hint="Die E-Mail-Adresse wird für den Zugang zum Mitarbeiterportal MyCenter benötigt." />
               <InputField id="telefon" label="Telefonnummer" value={form.telefon} onChange={(e) => update('telefon', e.target.value)} />
             </div>
@@ -270,9 +371,9 @@ export default function MitarbeiterPage() {
               <InputField id="steuerklasse" label="Steuerklasse" value={form.steuerklasse} onChange={(e) => update('steuerklasse', e.target.value)} />
               <InputField id="konfession" label="Konfession" value={form.konfession} onChange={(e) => update('konfession', e.target.value)} />
               <InputField id="svNummer" label="Sozialversicherungsnummer" value={form.svNummer} onChange={(e) => update('svNummer', e.target.value)} hint="Bitte möglichst direkt eintragen. Wenn sie fehlt, wird ein Nachreich-Hinweis mitgesendet." />
-              <InputField id="geburtsname" label="Geburtsname" value={form.geburtsname} onChange={(e) => update('geburtsname', e.target.value)} required />
-              <InputField id="geburtsort" label="Geburtsort" value={form.geburtsort} onChange={(e) => update('geburtsort', e.target.value)} required />
-              <InputField id="geburtsland" label="Geburtsland" value={form.geburtsland} onChange={(e) => update('geburtsland', e.target.value)} required />
+              <InputField id="geburtsname" label="Geburtsname" value={form.geburtsname} onChange={(e) => update('geburtsname', e.target.value)} required error={fieldErrors.geburtsname?.[0]} />
+              <InputField id="geburtsort" label="Geburtsort" value={form.geburtsort} onChange={(e) => update('geburtsort', e.target.value)} required error={fieldErrors.geburtsort?.[0]} />
+              <InputField id="geburtsland" label="Geburtsland" value={form.geburtsland} onChange={(e) => update('geburtsland', e.target.value)} required error={fieldErrors.geburtsland?.[0]} />
               {!isMinijob && <InputField id="krankenkasse" label="Krankenkasse" value={form.krankenkasse} onChange={(e) => update('krankenkasse', e.target.value)} required />}
               {!isMinijob && <SelectField id="versicherungsart" label="Versicherungsart" value={form.versicherungsart} onChange={(e) => update('versicherungsart', e.target.value)} options={['gesetzlich', 'privat']} required />}
             </div>
@@ -282,7 +383,7 @@ export default function MitarbeiterPage() {
             <h3>4. Beschäftigung & Vergütung</h3>
             <div className="formGrid">
               <InputField id="taetigkeitsbereich" label="Tätigkeitsbereich / Tätigkeit" value={form.taetigkeitsbereich} onChange={(e) => update('taetigkeitsbereich', e.target.value)} required placeholder="z. B. Bürogehilfe, Schweißer, Verkäufer" />
-              <InputField id="eintrittsdatum" label="Eintrittsdatum / ab wann anmelden" type="date" value={form.eintrittsdatum} onChange={(e) => update('eintrittsdatum', e.target.value)} required />
+              <InputField id="eintrittsdatum" label="Eintrittsdatum / ab wann anmelden" type="date" value={form.eintrittsdatum} onChange={(e) => update('eintrittsdatum', e.target.value)} required error={fieldErrors.eintrittsdatum?.[0]} />
               <InputField id="arbeitsort" label="Arbeitsort" value={form.arbeitsort} onChange={(e) => update('arbeitsort', e.target.value)} />
               <SelectField id="verguetungsart" label="Vergütungsart" value={form.verguetungsart} onChange={(e) => update('verguetungsart', e.target.value)} options={['Gehalt', 'Stundenlohn']} required />
               {isGehalt ? (
