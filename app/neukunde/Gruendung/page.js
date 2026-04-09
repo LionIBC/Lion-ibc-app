@@ -1,6 +1,6 @@
 'use client';
 
-export default function GruendungPage() {
+export default function gruendungPage() {
   return (
     <main
       style={{
