@@ -107,23 +107,55 @@ export default function HomePage() {
 
 </div>
 
-          <div
-            style={{
-              display: 'flex',
-              gap: '16px',
-              flexWrap: 'wrap'
-            }}
-          >
-            <Link href="/neukunde" style={primaryButton}>
-              Neukunde starten
-            </Link>
+         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '30px' }}>
 
-            <Link href="/mitarbeiter" style={secondaryButton}>
-              Bestandskunde / Mitarbeiterformular
-            </Link>
-          </div>
-        </section>
-      </div>
+  {/* Neukunde Box */}
+  <div
+    style={{
+      flex: '1',
+      minWidth: '260px',
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      padding: '20px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+    }}
+  >
+    <h3 style={{ marginBottom: '10px' }}>Neukunde</h3>
+    <p style={{ fontSize: '14px', color: '#667085', marginBottom: '20px' }}>
+      Starten Sie die Zusammenarbeit digital und übermitteln Sie alle relevanten Informationen strukturiert.
+    </p>
+
+    <a href="/neukunde" style={primaryButton}>
+      Neukunde starten
+    </a>
+  </div>
+
+
+  {/* Bestandskunde Box */}
+  <div
+    style={{
+      flex: '1',
+      minWidth: '260px',
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      padding: '20px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+    }}
+  >
+    <h3 style={{ marginBottom: '10px' }}>Bestandskunde</h3>
+    <p style={{ fontSize: '14px', color: '#667085', marginBottom: '20px' }}>
+      Mitarbeiter erfassen und laufende Prozesse digital und effizient abwickeln.
+    </p>
+
+    <a href="/mitarbeiter" style={secondaryButton}>
+      Zum Bereich
+    </a>
+  </div>
+
+</div>
+
     </main>
   );
 }
