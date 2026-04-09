@@ -139,7 +139,7 @@ export default function NeukundePage() {
                 oder Unternehmensberatung? Starten Sie hier die digitale Aufnahme.
               </p>
 
-              <Link href="/neukunde/bestand" style={secondaryButton}>
+              <Link href="/neukunde/beratung" style={secondaryButton}>
                 Bereich auswählen
               </Link>
             </div>
