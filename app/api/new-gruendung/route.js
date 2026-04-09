@@ -2,21 +2,49 @@ import { sendNotification } from '../../../lib/email';
 
 export async function POST(request) {
   try {
-    const body = await request.json();
+    const formData = await request.formData();
+
+    const data = {};
+    const attachments = [];
+
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        if (value.size > 0) {
+          const buffer = Buffer.from(await value.arrayBuffer());
+
+          attachments.push({
+            filename: value.name,
+            content: buffer.toString('base64')
+          });
+        }
+      } else {
+        data[key] = value;
+      }
+    }
+
+    if (data.unterschrift && data.unterschrift.startsWith('data:image/png;base64,')) {
+      const base64Signature = data.unterschrift.replace('data:image/png;base64,', '');
+
+      attachments.push({
+        filename: 'unterschrift.png',
+        content: base64Signature
+      });
+    }
 
     const mail = await sendNotification({
       subject: 'Neue Unternehmensgründung',
       title: 'Neue Anfrage Unternehmensgründung',
-      data: body
+      data,
+      attachments
     });
 
     return Response.json({
       message: mail.skipped
-        ? 'Die Gründungsdaten wurden übermittelt. Der E-Mail-Versand ist noch nicht konfiguriert.'
+        ? 'Die Gründungsdaten wurden übermittelt. Der E-Mail-Versand ist noch nicht vollständig eingerichtet.'
         : 'Die Gründungsdaten wurden erfolgreich übermittelt.'
     });
   } catch (error) {
-    console.error(error);
+    console.error('NEW GRUENDUNG ERROR:', error);
 
     return Response.json(
       { message: 'Fehler beim Senden.' },
