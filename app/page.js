@@ -9,7 +9,7 @@ import Link from 'next/link';
         <img
           src="/logo.png"
           alt="Lion IBC Logo"
-          style={{ height: '60px' }}
+          style={{ height: '80px', maxHeight: '120px' }}
         />
       </div>
 
