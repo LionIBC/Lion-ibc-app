@@ -23,10 +23,11 @@ export async function POST(request) {
     }
 
     if (data.unterschrift && data.unterschrift.startsWith('data:image/png;base64,')) {
-      const base64Signature = data.unterschrift.replace('data:image/png;base64,', '');
-      const unterschriftBuffer = Buffer.from(base64Signature, 'base64');
+     const base64Signature = data.unterschrift.replace('data:image/png;base64,', '');
 
-      data.unterschriftBuffer = unterschriftBuffer;
+data.unterschriftBase64 = base64Signature;
+
+
 
       attachments.push({
         filename: 'unterschrift.png',
