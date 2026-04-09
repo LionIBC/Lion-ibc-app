@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import FormHeader from '../../components/FormHeader';
+import FormHeader from '../../../components/FormHeader';
 
 const initialState = {
   firmenname: '',
