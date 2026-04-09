@@ -68,22 +68,11 @@ const initialState = {
 const arbeitstageOptionen = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const einstellungsarten = ['Minijob', 'Midijob', 'Werkstudent', 'Azubi', 'Arbeitnehmer', 'geschäftsführender Gesellschafter', 'Rentner'];
 
-function InputField({
-  id,
-  label,
-  value,
-  onChange,
-  type = 'text',
-  required = false,
-  placeholder = '',
-  hint = '',
-  error = ''
-}) {
+function InputField({ id, label, value, onChange, type = 'text', required = false, placeholder = '', hint = '', error }) {
   return (
     <div className="field">
       <label htmlFor={id}>
-        {label}
-        {required ? ' *' : ''}
+        {label}{required ? ' *' : ''}
       </label>
 
       <input
@@ -93,16 +82,20 @@ function InputField({
         onChange={onChange}
         placeholder={placeholder}
         required={required}
-        style={error ? { borderColor: '#dc2626', background: '#fef2f2' } : {}}
+        style={{
+          borderColor: error ? 'red' : '#ccc'
+        }}
       />
 
-      {error ? (
-        <span className="hint" style={{ color: '#dc2626' }}>
+      {hint && !error && (
+        <span className="hint">{hint}</span>
+      )}
+
+      {error && (
+        <span style={{ color: 'red', fontSize: '12px' }}>
           {error}
         </span>
-      ) : hint ? (
-        <span className="hint">{hint}</span>
-      ) : null}
+      )}
     </div>
   );
 }
