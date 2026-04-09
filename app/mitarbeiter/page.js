@@ -75,17 +75,20 @@ function InputField({ id, label, value, onChange, type = 'text', required = fals
         {label}{required ? ' *' : ''}
       </label>
 
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required={required}
-        style={{
-          borderColor: error ? 'red' : '#ccc'
-        }}
-      />
+     <input
+  id={id}
+  type={type}
+  value={value}
+  onChange={onChange}
+  placeholder={placeholder}
+  required={required}
+  style={{
+    border: error ? '2px solid red' : '1px solid #ccc',
+    outline: 'none'
+  }}
+/>
+
+
 
       {hint && !error && (
         <span className="hint">{hint}</span>
