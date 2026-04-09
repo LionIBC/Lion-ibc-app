@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function GruendungPage() {
   const initialState = {
@@ -31,15 +31,117 @@ export default function GruendungPage() {
     anzahlMitarbeiter: '',
     startBeschaeftigung: '',
 
-    hinweise: ''
+    hinweise: '',
+
+    dsgvoAkzeptiert: false,
+    vollmachtAkzeptiert: false
   };
 
   const [form, setForm] = useState(initialState);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null);
 
+  const [ausweisVorne, setAusweisVorne] = useState(null);
+  const [ausweisHinten, setAusweisHinten] = useState(null);
+  const [weitereUnterlagen, setWeitereUnterlagen] = useState([]);
+
+  const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const hasSignatureRef = useRef(false);
+
   function update(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resizeCanvas() {
+    const canvas = canvasRef.current;
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
+
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const width = wrapper.offsetWidth;
+    const height = 180;
+
+    const oldData = canvas.toDataURL();
+
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#101828';
+
+    if (oldData && hasSignatureRef.current) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = oldData;
+    }
+  }
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  function getPosition(event) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    if (event.touches && event.touches[0]) {
+      return {
+        x: event.touches[0].clientX - rect.left,
+        y: event.touches[0].clientY - rect.top
+      };
+    }
+
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function startDrawing(event) {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPosition(event);
+
+    isDrawingRef.current = true;
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    event.preventDefault();
+  }
+
+  function draw(event) {
+    if (!isDrawingRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPosition(event);
+
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    hasSignatureRef.current = true;
+    event.preventDefault();
+  }
+
+  function stopDrawing() {
+    isDrawingRef.current = false;
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasSignatureRef.current = false;
   }
 
   async function handleSubmit(e) {
@@ -47,11 +149,58 @@ export default function GruendungPage() {
     setSending(true);
     setStatus(null);
 
+    if (!form.dsgvoAkzeptiert) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte bestätigen Sie die Datenschutzerklärung.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (!form.vollmachtAkzeptiert) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte bestätigen Sie die Vollmacht.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (!hasSignatureRef.current) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte unterschreiben Sie im Unterschriftenfeld.'
+      });
+      setSending(false);
+      return;
+    }
+
     try {
+      const formData = new FormData();
+
+      Object.entries(form).forEach(([key, value]) => {
+        formData.append(key, typeof value === 'boolean' ? String(value) : value);
+      });
+
+      const signatureDataUrl = canvasRef.current.toDataURL('image/png');
+      formData.append('unterschrift', signatureDataUrl);
+
+      if (ausweisVorne) {
+        formData.append('ausweisVorne', ausweisVorne);
+      }
+
+      if (ausweisHinten) {
+        formData.append('ausweisHinten', ausweisHinten);
+      }
+
+      Array.from(weitereUnterlagen).forEach((file) => {
+        formData.append('weitereUnterlagen', file);
+      });
+
       const res = await fetch('/api/new-gruendung', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: formData
       });
 
       const data = await res.json();
@@ -62,6 +211,10 @@ export default function GruendungPage() {
           message: data.message || 'Die Gründungsdaten wurden erfolgreich übermittelt.'
         });
         setForm(initialState);
+        setAusweisVorne(null);
+        setAusweisHinten(null);
+        setWeitereUnterlagen([]);
+        clearSignature();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         setStatus({
@@ -276,8 +429,100 @@ export default function GruendungPage() {
               style={textarea}
             />
 
-            <div style={infoBox}>
-              DSGVO, Vollmacht und Unterschrift ergänzen wir im nächsten Schritt.
+            <h3 style={sectionTitle}>Unterlagen</h3>
+            <div style={uploadGrid}>
+              <UploadField
+                label="Ausweis Vorderseite"
+                onChange={(e) => setAusweisVorne(e.target.files?.[0] || null)}
+              />
+              <UploadField
+                label="Ausweis Rückseite"
+                onChange={(e) => setAusweisHinten(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <div style={{ marginTop: '14px' }}>
+              <UploadField
+                label="Weitere Unterlagen"
+                multiple
+                onChange={(e) => setWeitereUnterlagen(e.target.files || [])}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Datenschutz & Vollmacht</h3>
+
+            <div style={checkboxBox}>
+              <label style={checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.dsgvoAkzeptiert}
+                  onChange={(e) => update('dsgvoAkzeptiert', e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                Ich habe die{' '}
+                <a href="/datenschutz" target="_blank" rel="noreferrer" style={linkStyle}>
+                  Datenschutzerklärung
+                </a>{' '}
+                gelesen und akzeptiere diese.
+              </label>
+            </div>
+
+            <div style={{ ...checkboxBox, marginTop: '10px' }}>
+              <label style={checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.vollmachtAkzeptiert}
+                  onChange={(e) => update('vollmachtAkzeptiert', e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                Ich habe die{' '}
+                <a href="/vollmacht" target="_blank" rel="noreferrer" style={linkStyle}>
+                  Vollmacht
+                </a>{' '}
+                gelesen und bestätige diese.
+              </label>
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <label style={labelStyle}>Unterschrift *</label>
+              <div
+                ref={wrapperRef}
+                style={{
+                  marginTop: '8px',
+                  border: '1px solid #d0d5dd',
+                  borderRadius: '12px',
+                  background: '#fff',
+                  overflow: 'hidden'
+                }}
+              >
+                <canvas
+                  ref={canvasRef}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '180px',
+                    touchAction: 'none',
+                    cursor: 'crosshair'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  style={secondarySmallButton}
+                >
+                  Unterschrift löschen
+                </button>
+              </div>
             </div>
 
             <button type="submit" style={button} disabled={sending}>
@@ -312,6 +557,15 @@ function InputField({
         required={required}
         style={input}
       />
+    </div>
+  );
+}
+
+function UploadField({ label, onChange, multiple = false }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={labelStyle}>{label}</label>
+      <input type="file" onChange={onChange} multiple={multiple} style={fileInput} />
     </div>
   );
 }
@@ -370,10 +624,24 @@ const grid = {
   gap: '14px'
 };
 
+const uploadGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '14px'
+};
+
 const input = {
   padding: '12px',
   borderRadius: '10px',
   border: '1px solid #d0d5dd',
+  fontSize: '14px'
+};
+
+const fileInput = {
+  padding: '10px',
+  borderRadius: '10px',
+  border: '1px solid #d0d5dd',
+  background: '#fff',
   fontSize: '14px'
 };
 
@@ -387,6 +655,24 @@ const textarea = {
   resize: 'vertical'
 };
 
+const checkboxBox = {
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#fcfcfd',
+  border: '1px solid #eaecf0'
+};
+
+const checkboxLabel = {
+  fontSize: '14px',
+  color: '#344054',
+  lineHeight: 1.6
+};
+
+const linkStyle = {
+  color: '#8c6b43',
+  textDecoration: 'underline'
+};
+
 const button = {
   marginTop: '24px',
   padding: '16px',
@@ -396,6 +682,16 @@ const button = {
   border: 'none',
   fontWeight: '600',
   width: '100%',
+  cursor: 'pointer'
+};
+
+const secondarySmallButton = {
+  padding: '10px 14px',
+  borderRadius: '10px',
+  background: '#ffffff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  fontWeight: '600',
   cursor: 'pointer'
 };
 
@@ -417,14 +713,4 @@ const successBox = {
   background: '#ecfdf3',
   border: '1px solid #abefc6',
   color: '#067647'
-};
-
-const infoBox = {
-  marginTop: '20px',
-  padding: '12px 14px',
-  borderRadius: '12px',
-  background: '#f8f9fc',
-  border: '1px solid #e4e7ec',
-  color: '#475467',
-  fontSize: '14px'
 };
