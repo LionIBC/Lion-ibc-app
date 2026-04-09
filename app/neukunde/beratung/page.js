@@ -120,6 +120,18 @@ export default function NeukundePage() {
     e.preventDefault();
     setSending(true);
     setStatus(null);
+    const mitarbeiter = form.mitarbeiter;
+const betriebsnummer = form.betriebsnummer;
+
+if (mitarbeiter === 'ja' && !betriebsnummer) {
+  setStatus({
+    type: 'error',
+    message: 'Bitte Betriebsnummer angeben, wenn Mitarbeiter angemeldet werden.'
+  });
+  setSending(false);
+  return;
+}
+
 
     try {
       const res = await fetch('/api/new-client', {
