@@ -336,7 +336,7 @@ async function handleSubmit(e) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <section className="sectionCard">
             <h3>1. Arbeitgeber & Einstellungsart</h3>
             <div className="formGrid">
