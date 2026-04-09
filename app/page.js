@@ -6,7 +6,7 @@ export default function HomePage() {
       style={{
         minHeight: '100vh',
         background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
-        padding: '48px 20px 80px'
+        padding: '32px 20px 60px'
       }}
     >
       <div
@@ -15,11 +15,15 @@ export default function HomePage() {
           margin: '0 auto'
         }}
       >
-        <div style={{ marginBottom: '40px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <img
             src="/logo.png"
             alt="Lion IBC Logo"
-            style={{ height: '160px', width: 'auto', display: 'block' }}
+            style={{
+              height: '120px',
+              width: 'auto',
+              display: 'block'
+            }}
           />
         </div>
 
@@ -53,7 +57,9 @@ export default function HomePage() {
               fontSize: '48px',
               lineHeight: 1.1,
               color: '#101828',
-              margin: '0 0 20px'
+              margin: '0 0 20px',
+              fontWeight: '700',
+              letterSpacing: '-0.5px'
             }}
           >
             Ihr Zugang zur digitalen Zusammenarbeit mit Lion IBC
@@ -107,7 +113,8 @@ export default function HomePage() {
               display: 'flex',
               gap: '20px',
               flexWrap: 'wrap',
-              marginTop: '30px'
+              marginTop: '30px',
+              alignItems: 'stretch'
             }}
           >
             <div
@@ -118,7 +125,8 @@ export default function HomePage() {
                 border: '1px solid #e5e7eb',
                 borderRadius: '16px',
                 padding: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                height: '100%'
               }}
             >
               <h3 style={{ marginBottom: '10px' }}>Neukunde</h3>
@@ -147,7 +155,8 @@ export default function HomePage() {
                 border: '1px solid #e5e7eb',
                 borderRadius: '16px',
                 padding: '20px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.04)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                height: '100%'
               }}
             >
               <h3 style={{ marginBottom: '10px' }}>Bestandskunde</h3>
@@ -195,7 +204,7 @@ const secondaryButton = {
   justifyContent: 'center',
   padding: '16px 24px',
   borderRadius: '14px',
-  background: '#ffffff',
+  background: '#f9fafb',
   color: '#101828',
   textDecoration: 'none',
   fontWeight: '600',
