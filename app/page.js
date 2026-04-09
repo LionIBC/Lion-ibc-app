@@ -1,9 +1,10 @@
 import Link from 'next/link';
 
-    export default function NeukundePage() {
+    export default function HomePage() {
   return (
-    <main style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
+    <main className="container">
 
+      {/* LOGO */}
       <div style={{ marginBottom: '30px' }}>
         <img
           src="/logo.png"
@@ -12,13 +13,21 @@ import Link from 'next/link';
         />
       </div>
 
-      <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>
-        Neukundenaufnahme
-      </h1>
+      <section className="hero heroPanel">
+        <div className="brandPill">LION IBC · Neukundenaufnahme</div>
 
-    </main>
-  );
-}
+        <h1>Digitale Unternehmensaufnahme für neue Mandanten</h1>
+
+        <p>Bitte wählen Sie den passenden Bereich:</p>
+
+        <div style={{ marginTop: '20px', display: 'flex', gap: '20px' }}>
+          <a href="/neukunde">Neukunde</a>
+          <a href="/mitarbeiter">Bestandskunde</a>
+        </div>
+      </section>
+
+
+
 
     <main className="container">
       <section className="hero heroPanel">
