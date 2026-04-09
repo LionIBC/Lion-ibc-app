@@ -1,7 +1,25 @@
 import Link from 'next/link';
 
-export default function Home() {
+    export default function NeukundePage() {
   return (
+    <main style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
+
+      <div style={{ marginBottom: '30px' }}>
+        <img
+          src="/logo.png"
+          alt="Lion IBC Logo"
+          style={{ height: '60px' }}
+        />
+      </div>
+
+      <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>
+        Neukundenaufnahme
+      </h1>
+
+    </main>
+  );
+}
+
     <main className="container">
       <section className="hero heroPanel">
         <div className="brandPill">LION IBC · Neukundenaufnahme</div>
