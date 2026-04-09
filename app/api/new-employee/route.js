@@ -1,4 +1,4 @@
-import { newEmployeeSchema } from '../../../../lib/validation'; import { sendNotification } from '../../../../lib/email';
+import { newEmployeeSchema } from '../../../lib/validation'; import { sendNotification } from '../../../lib/email';
 
 export async function POST(request) {
   try {
