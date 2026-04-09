@@ -20,7 +20,7 @@ import Link from 'next/link';
 
         <p>Bitte wählen Sie den passenden Bereich:</p>
 
-        <div style={{ marginTop: '20px', display: 'flex', gap: '20px' }}>
+        <div style={{ marginTop: '20px', display: 'flex', gap: '40px' }}>
           <a href="/neukunde">Neukunde</a>
           <a href="/mitarbeiter">Bestandskunde</a>
         </div>
