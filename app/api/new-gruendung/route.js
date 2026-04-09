@@ -1,4 +1,4 @@
-import { sendNotification } from '../../../lib/email';
+import { sendNotification } from '../../../lib/email'; import { generateVollmachtPDF } from '../../../lib/vollmacht-pdf';
 
 export async function POST(request) {
   try {
@@ -24,10 +24,20 @@ export async function POST(request) {
 
     if (data.unterschrift && data.unterschrift.startsWith('data:image/png;base64,')) {
       const base64Signature = data.unterschrift.replace('data:image/png;base64,', '');
+      const unterschriftBuffer = Buffer.from(base64Signature, 'base64');
+
+      data.unterschriftBuffer = unterschriftBuffer;
 
       attachments.push({
         filename: 'unterschrift.png',
         content: base64Signature
+      });
+
+      const vollmachtPdf = await generateVollmachtPDF(data);
+
+      attachments.push({
+        filename: `Vollmacht_${data.firmenname || 'Gruendung'}.pdf`,
+        content: vollmachtPdf.toString('base64')
       });
     }
 
