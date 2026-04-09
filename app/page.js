@@ -154,8 +154,6 @@ export default function HomePage() {
     </a>
   </div>
 
-</div>
-
     </main>
   );
 }
