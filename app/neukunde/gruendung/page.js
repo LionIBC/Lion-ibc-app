@@ -31,7 +31,7 @@ export default function GruendungPage() {
     anzahlMitarbeiter: '',
     startBeschaeftigung: '',
 
-    beauftragungBestaetigt: false
+    hinweise: ''
   };
 
   const [form, setForm] = useState(initialState);
@@ -47,15 +47,6 @@ export default function GruendungPage() {
     setSending(true);
     setStatus(null);
 
-    if (!form.beauftragungBestaetigt) {
-      setStatus({
-        type: 'error',
-        message: 'Bitte bestätigen Sie die Beauftragung und die Richtigkeit Ihrer Angaben.'
-      });
-      setSending(false);
-      return;
-    }
-
     try {
       const res = await fetch('/api/new-gruendung', {
         method: 'POST',
@@ -66,7 +57,10 @@ export default function GruendungPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setStatus({ type: 'success', message: data.message });
+        setStatus({
+          type: 'success',
+          message: data.message || 'Die Gründungsdaten wurden erfolgreich übermittelt.'
+        });
         setForm(initialState);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -108,8 +102,9 @@ export default function GruendungPage() {
           <h1 style={title}>Digitale Unternehmensgründung</h1>
 
           <p style={subtitle}>
-            Übermitteln Sie uns alle relevanten Informationen. Wir übernehmen die vollständige
-            Gründung inklusive Notar, Gewerbeanmeldung, steuerlicher Erfassung und weiterer Behörden.
+            Übermitteln Sie uns alle relevanten Informationen. Wir übernehmen die
+            vollständige Gründung inklusive Notar, Gewerbeanmeldung, steuerlicher
+            Erfassung und weiterer Behörden.
           </p>
 
           {status && status.type === 'error' && (
@@ -124,25 +119,25 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Ansprechpartner</h3>
             <div style={grid}>
               <InputField
-                placeholder="Vorname"
+                label="Vorname"
                 value={form.vorname}
                 onChange={(e) => update('vorname', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Nachname"
+                label="Nachname"
                 value={form.nachname}
                 onChange={(e) => update('nachname', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Telefon"
+                label="Telefon"
                 value={form.telefon}
                 onChange={(e) => update('telefon', e.target.value)}
                 required
               />
               <InputField
-                placeholder="E-Mail"
+                label="E-Mail"
                 type="email"
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
@@ -153,35 +148,38 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Gründungsvorhaben</h3>
             <div style={grid}>
               <InputField
-                placeholder="Gewünschter Firmenname"
+                label="Gewünschter Firmenname"
                 value={form.firmenname}
                 onChange={(e) => update('firmenname', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Alternative Firmennamen (optional)"
+                label="Alternative Firmennamen"
                 value={form.alternativeFirmennamen}
                 onChange={(e) => update('alternativeFirmennamen', e.target.value)}
               />
               <InputField
-                placeholder="Rechtsform (z.B. GmbH)"
+                label="Rechtsform"
+                placeholder="z. B. GmbH"
                 value={form.rechtsform}
                 onChange={(e) => update('rechtsform', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Unternehmenssitz (Ort)"
+                label="Unternehmenssitz"
+                placeholder="Ort"
                 value={form.unternehmenssitz}
                 onChange={(e) => update('unternehmenssitz', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Geschäftsadresse vorhanden? (ja/nein)"
+                label="Geschäftsadresse vorhanden?"
+                placeholder="ja / nein"
                 value={form.geschaeftsadresseVorhanden}
                 onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
               />
               <InputField
-                placeholder="Tätigkeit / Branche"
+                label="Tätigkeit / Branche"
                 value={form.taetigkeit}
                 onChange={(e) => update('taetigkeit', e.target.value)}
                 required
@@ -191,25 +189,27 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Gesellschafter / Geschäftsführer</h3>
             <div style={grid}>
               <InputField
-                placeholder="Name Gesellschafter 1"
+                label="Name Gesellschafter 1"
                 value={form.gesellschafter1}
                 onChange={(e) => update('gesellschafter1', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Beteiligung in %"
+                label="Beteiligung in %"
                 value={form.beteiligung1}
                 onChange={(e) => update('beteiligung1', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Geschäftsführer (ja/nein)"
+                label="Geschäftsführer"
+                placeholder="ja / nein"
                 value={form.geschaeftsfuehrerJaNein}
                 onChange={(e) => update('geschaeftsfuehrerJaNein', e.target.value)}
                 required
               />
               <InputField
-                placeholder="Weitere Gesellschafter vorhanden? (ja/nein)"
+                label="Weitere Gesellschafter vorhanden?"
+                placeholder="ja / nein"
                 value={form.weitereGesellschafter}
                 onChange={(e) => update('weitereGesellschafter', e.target.value)}
               />
@@ -218,7 +218,8 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Stammkapital</h3>
             <div style={grid}>
               <InputField
-                placeholder="Höhe des Stammkapitals (z.B. 25.000 €)"
+                label="Höhe des Stammkapitals"
+                placeholder="z. B. 25.000 €"
                 value={form.stammkapital}
                 onChange={(e) => update('stammkapital', e.target.value)}
                 required
@@ -228,17 +229,20 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Steuer & Behörden</h3>
             <div style={grid}>
               <InputField
-                placeholder="Umsatz im 1. Jahr (geschätzt)"
+                label="Umsatz im 1. Jahr"
+                placeholder="geschätzt"
                 value={form.umsatz1Jahr}
                 onChange={(e) => update('umsatz1Jahr', e.target.value)}
               />
               <InputField
-                placeholder="Gewinn im 1. Jahr (geschätzt)"
+                label="Gewinn im 1. Jahr"
+                placeholder="geschätzt"
                 value={form.gewinn1Jahr}
                 onChange={(e) => update('gewinn1Jahr', e.target.value)}
               />
               <InputField
-                placeholder="Kleinunternehmerregelung (ja/nein/unsicher)"
+                label="Kleinunternehmerregelung"
+                placeholder="ja / nein / unsicher"
                 value={form.kleinunternehmerregelung}
                 onChange={(e) => update('kleinunternehmerregelung', e.target.value)}
               />
@@ -247,33 +251,33 @@ export default function GruendungPage() {
             <h3 style={sectionTitle}>Mitarbeiter</h3>
             <div style={grid}>
               <InputField
-                placeholder="Werden Mitarbeiter eingestellt? (ja/nein)"
+                label="Werden Mitarbeiter eingestellt?"
+                placeholder="ja / nein"
                 value={form.mitarbeiter}
                 onChange={(e) => update('mitarbeiter', e.target.value)}
               />
               <InputField
-                placeholder="Anzahl Mitarbeiter (optional)"
+                label="Anzahl Mitarbeiter"
                 value={form.anzahlMitarbeiter}
                 onChange={(e) => update('anzahlMitarbeiter', e.target.value)}
               />
               <InputField
-                placeholder="Start der Beschäftigung (optional)"
+                label="Start der Beschäftigung"
                 value={form.startBeschaeftigung}
                 onChange={(e) => update('startBeschaeftigung', e.target.value)}
               />
             </div>
 
-            <div style={{ marginTop: '24px', marginBottom: '20px' }}>
-              <label style={{ fontSize: '14px', color: '#344054' }}>
-                <input
-                  type="checkbox"
-                  checked={form.beauftragungBestaetigt}
-                  onChange={(e) => update('beauftragungBestaetigt', e.target.checked)}
-                  style={{ marginRight: '8px' }}
-                />
-                Ich beauftrage Lion IBC mit der Durchführung der Unternehmensgründung und bestätige die
-                Richtigkeit meiner Angaben.
-              </label>
+            <h3 style={sectionTitle}>Hinweise</h3>
+            <textarea
+              placeholder="Zusätzliche Informationen oder Besonderheiten"
+              value={form.hinweise}
+              onChange={(e) => update('hinweise', e.target.value)}
+              style={textarea}
+            />
+
+            <div style={infoBox}>
+              DSGVO, Vollmacht und Unterschrift ergänzen wir im nächsten Schritt.
             </div>
 
             <button type="submit" style={button} disabled={sending}>
@@ -286,16 +290,29 @@ export default function GruendungPage() {
   );
 }
 
-function InputField({ placeholder, value, onChange, type = 'text', required = false }) {
+function InputField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder = '',
+  required = false
+}) {
   return (
-    <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
-      onChange={onChange}
-      required={required}
-      style={input}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={labelStyle}>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        style={input}
+      />
+    </div>
   );
 }
 
@@ -336,15 +353,21 @@ const subtitle = {
 
 const sectionTitle = {
   marginTop: '30px',
-  marginBottom: '10px',
+  marginBottom: '12px',
   fontWeight: '600',
   color: '#101828'
+};
+
+const labelStyle = {
+  fontSize: '14px',
+  fontWeight: '600',
+  color: '#344054'
 };
 
 const grid = {
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
-  gap: '12px'
+  gap: '14px'
 };
 
 const input = {
@@ -354,8 +377,18 @@ const input = {
   fontSize: '14px'
 };
 
+const textarea = {
+  width: '100%',
+  minHeight: '110px',
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px',
+  resize: 'vertical'
+};
+
 const button = {
-  marginTop: '20px',
+  marginTop: '24px',
   padding: '16px',
   borderRadius: '12px',
   background: '#8c6b43',
@@ -384,4 +417,14 @@ const successBox = {
   background: '#ecfdf3',
   border: '1px solid #abefc6',
   color: '#067647'
+};
+
+const infoBox = {
+  marginTop: '20px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#f8f9fc',
+  border: '1px solid #e4e7ec',
+  color: '#475467',
+  fontSize: '14px'
 };
