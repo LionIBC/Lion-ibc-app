@@ -200,7 +200,7 @@ export default function NeukundePage() {
             <h3>3. Unternehmensnummern</h3>
             <div className="formGrid">
               <InputField id="unternehmensnummer" label="Unternehmensnummer" value={form.unternehmensnummer} onChange={(e) => update('unternehmensnummer', e.target.value)} />
-              <InputField id="betriebsnummer" label="Betriebsnummer" value={form.betriebsnummer} onChange={(e) => update('betriebsnummer', e.target.value)} required />
+              <InputField id="betriebsnummer" label="Betriebsnummer" value={form.betriebsnummer} onChange={(e) => update('betriebsnummer', e.target.value)} />
               <InputField id="bgPin" label="BG-PIN" value={form.bgPin} onChange={(e) => update('bgPin', e.target.value)} />
             </div>
           </section>
