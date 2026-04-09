@@ -49,7 +49,7 @@ export default function HomePage() {
               marginBottom: '20px'
             }}
           >
-            LION IBC · Digitales Mandantenportal
+            LION IBC · Digital Mandantenportal
           </div>
 
           <h1
@@ -61,24 +61,51 @@ export default function HomePage() {
               margin: '0 0 18px'
             }}
           >
-            Digitale Unternehmensaufnahme
-            <br />
-            für neue und bestehende Mandanten
+           Ihr Zugang zur digitalen Zusammenarbeit mit Lion IBC
+          
           </h1>
 
-          <p
-            style={{
-              fontSize: '19px',
-              lineHeight: 1.7,
-              color: '#475467',
-              maxWidth: '780px',
-              margin: '0 0 34px'
-            }}
-          >
-            Bitte wählen Sie den passenden Bereich. Neukunden gelangen zur
-            digitalen Erstaufnahme. Bestandskunden können direkt den
-            Mitarbeiterfragebogen aufrufen.
-          </p>
+         <div
+  style={{
+    fontSize: '18px',
+    color: '#475467',
+    maxWidth: '780px',
+    marginBottom: '30px',
+    lineHeight: 1.7
+  }}
+>
+
+  <p>
+    Mit Lion IBC Digital steuern wir die Zusammenarbeit mit unseren Mandanten effizient, strukturiert und ortsunabhängig.
+  </p>
+
+  <p style={{ marginTop: '16px' }}>
+    Durch unsere digitalen Prozesse können wir Anfragen schneller bearbeiten, Fehler reduzieren und eine einfache sowie klare Kommunikation gewährleisten.
+  </p>
+
+  {/* Neukunden */}
+  <div style={{ marginTop: '24px' }}>
+    <strong style={{ display: 'block', marginBottom: '6px' }}>
+      Für neue Mandanten
+    </strong>
+    <span>
+      Starten Sie die Zusammenarbeit mit uns digital und strukturiert.
+      Übermitteln Sie alle relevanten Informationen einfach und vollständig – wir kümmern uns um den Rest.
+    </span>
+  </div>
+
+  {/* Bestandskunden */}
+  <div style={{ marginTop: '20px' }}>
+    <strong style={{ display: 'block', marginBottom: '6px' }}>
+      Für bestehende Mandanten
+    </strong>
+    <span>
+      Nutzen Sie unser Portal zur Erfassung von Mitarbeiterdaten und weiteren Prozessen.
+      Unsere digitalen Systeme ermöglichen eine schnelle, fehlerarme und effiziente Bearbeitung.
+    </span>
+  </div>
+
+</div>
 
           <div
             style={{
