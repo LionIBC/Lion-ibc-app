@@ -1,13 +1,5 @@
 export default function NeukundePage() {
   return (
-    <div style={{ marginBottom: '30px' }}>
-  <img
-    src="/logo.png"
-    alt="Lion IBC Logo"
-    style={{ height: '60px' }}
-  />
-</div>
-
     <main style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '32px', marginBottom: '12px' }}>
         Neukundenaufnahme
