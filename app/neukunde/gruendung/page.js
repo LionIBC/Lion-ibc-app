@@ -1,117 +1,213 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function GruendungPage() {
-  const [rechtsform, setRechtsform] = useState('');
-  const [gesellschafterCount, setGesellschafterCount] = useState(0);
-  const [geschaeftsfuehrerCount, setGeschaeftsfuehrerCount] = useState(0);
 
-  const isEinzelunternehmen = rechtsform === 'Einzelunternehmen';
+  const initialState = {
+    vorname: '',
+    nachname: '',
+    telefon: '',
+    email: '',
+    firmenname: '',
+    alternativeFirmennamen: '',
+    alternativeFirmennamen2: '',
+    rechtsform: '',
+    unternehmenssitz: '',
+    taetigkeit: '',
+    stammkapital: '',
+    hinweise: '',
+    dsgvoAkzeptiert: false,
+    vollmachtAkzeptiert: false
+  };
+
+  const [form, setForm] = useState(initialState);
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  const [gesellschafterCount, setGesellschafterCount] = useState(1);
+  const [geschaeftsfuehrerCount, setGeschaeftsfuehrerCount] = useState(1);
+
+  const [weitereUnterlagen, setWeitereUnterlagen] = useState([]);
+
+  const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const hasSignatureRef = useRef(false);
+
+  function update(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function startDrawing(e) {
+    const ctx = canvasRef.current.getContext('2d');
+    const rect = canvasRef.current.getBoundingClientRect();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    isDrawingRef.current = true;
+  }
+
+  function draw(e) {
+    if (!isDrawingRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    const rect = canvasRef.current.getBoundingClientRect();
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.stroke();
+    hasSignatureRef.current = true;
+  }
+
+  function stopDrawing() {
+    isDrawingRef.current = false;
+  }
+
+  function clearSignature() {
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    hasSignatureRef.current = false;
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    if (!hasSignatureRef.current) {
+      alert('Bitte unterschreiben');
+      return;
+    }
+
+    setSending(true);
+
+    const formData = new FormData();
+
+    Object.entries(form).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    Array.from(weitereUnterlagen).forEach((file) => {
+      formData.append('weitereUnterlagen', file);
+    });
+
+    formData.append('unterschrift', canvasRef.current.toDataURL());
+
+    await fetch('/api/new-gruendung', {
+      method: 'POST',
+      body: formData
+    });
+
+    setSending(false);
+    setStatus('success');
+  }
 
   return (
     <main className="page-bg">
       <div className="container">
 
-        {/* HEADER */}
-        <div className="header">
-          <img src="/logo.png" className="logo" />
-
-          <div>
-            <div className="brand-title">Unternehmensgründung</div>
-            <div className="brand-sub">Bitte geben Sie alle relevanten Daten an</div>
-          </div>
-        </div>
-
         <div className="card">
+          <h1 className="hero-title">Unternehmensgründung</h1>
 
-          {/* RECHTSFORM */}
-          <h2>Rechtsform</h2>
-          <select
-            value={rechtsform}
-            onChange={(e) => setRechtsform(e.target.value)}
-          >
-            <option value="">Bitte wählen</option>
-            <option>Einzelunternehmen</option>
-            <option>GmbH</option>
-            <option>UG</option>
-            <option>GbR</option>
-            <option>AG</option>
-          </select>
+          <form onSubmit={handleSubmit}>
 
-          {/* FIRMENNAME */}
-          <h2>Firmenname</h2>
+            {/* Ansprechpartner */}
+            <h3 className="sectionTitle">Ansprechpartner</h3>
+            <div className="grid">
+              <input placeholder="Vorname" required onChange={(e) => update('vorname', e.target.value)} />
+              <input placeholder="Nachname" required onChange={(e) => update('nachname', e.target.value)} />
+              <input placeholder="Telefon" required onChange={(e) => update('telefon', e.target.value)} />
+              <input placeholder="E-Mail" required onChange={(e) => update('email', e.target.value)} />
+            </div>
 
-          <input placeholder="Gewünschter Firmenname" required />
+            {/* Rechtsform */}
+            <h3 className="sectionTitle">Rechtsform</h3>
+            <select onChange={(e) => update('rechtsform', e.target.value)} required>
+              <option value="">Bitte wählen</option>
+              <option>Einzelunternehmen</option>
+              <option>GmbH</option>
+              <option>UG</option>
+              <option>AG</option>
+            </select>
 
-          {!isEinzelunternehmen && (
-            <>
-              <input placeholder="Alternativer Name 1" required />
-              <input placeholder="Alternativer Name 2" required />
-            </>
-          )}
+            {/* Firmenname */}
+            <h3 className="sectionTitle">Firmenname</h3>
+            <input placeholder="Firmenname" required onChange={(e) => update('firmenname', e.target.value)} />
 
-          {/* GESELLSCHAFTER */}
-          {!isEinzelunternehmen && (
-            <>
-              <h2>Gesellschafter</h2>
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <>
+                <input placeholder="Alternativer Name 1" required onChange={(e) => update('alternativeFirmennamen', e.target.value)} />
+                <input placeholder="Alternativer Name 2" required onChange={(e) => update('alternativeFirmennamen2', e.target.value)} />
+              </>
+            )}
 
-              <select onChange={(e) => setGesellschafterCount(Number(e.target.value))}>
-                <option value="0">Anzahl wählen</option>
-                {[1,2,3,4,5].map(n => (
-                  <option key={n} value={n}>{n}</option>
+            {/* Gesellschafter */}
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <>
+                <h3 className="sectionTitle">Gesellschafter</h3>
+
+                <select onChange={(e) => setGesellschafterCount(Number(e.target.value))}>
+                  {[1,2,3,4,5].map(n => <option key={n}>{n}</option>)}
+                </select>
+
+                {Array.from({ length: gesellschafterCount }).map((_, i) => (
+                  <div key={i}>
+                    <h4>Gesellschafter {i+1}</h4>
+                    <input placeholder="Name" onChange={(e) => update(`g_${i}_name`, e.target.value)} />
+                    <input placeholder="Adresse" onChange={(e) => update(`g_${i}_adresse`, e.target.value)} />
+                    <input placeholder="Steuer-ID" onChange={(e) => update(`g_${i}_steuer`, e.target.value)} />
+                  </div>
                 ))}
-              </select>
+              </>
+            )}
 
-              {Array.from({ length: gesellschafterCount }).map((_, i) => (
-                <div key={i} style={{ marginTop: '20px' }}>
-                  <h3>Gesellschafter {i + 1}</h3>
-                  <input placeholder="Name" required />
-                  <input placeholder="Adresse" required />
-                  <input placeholder="Steuer-ID" required />
-                </div>
-              ))}
-            </>
-          )}
+            {/* Geschäftsführer */}
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <>
+                <h3 className="sectionTitle">Geschäftsführer</h3>
 
-          {/* GESCHÄFTSFÜHRER */}
-          {!isEinzelunternehmen && (
-            <>
-              <h2>Geschäftsführer</h2>
+                <select onChange={(e) => setGeschaeftsfuehrerCount(Number(e.target.value))}>
+                  {[1,2,3].map(n => <option key={n}>{n}</option>)}
+                </select>
 
-              <select onChange={(e) => setGeschaeftsfuehrerCount(Number(e.target.value))}>
-                <option value="0">Anzahl wählen</option>
-                {[1,2,3].map(n => (
-                  <option key={n} value={n}>{n}</option>
+                {Array.from({ length: geschaeftsfuehrerCount }).map((_, i) => (
+                  <div key={i}>
+                    <h4>Geschäftsführer {i+1}</h4>
+                    <input placeholder="Name" onChange={(e) => update(`gf_${i}_name`, e.target.value)} />
+                    <input placeholder="Adresse" onChange={(e) => update(`gf_${i}_adresse`, e.target.value)} />
+                    <input placeholder="Steuer-ID" onChange={(e) => update(`gf_${i}_steuer`, e.target.value)} />
+                  </div>
                 ))}
-              </select>
+              </>
+            )}
 
-              {Array.from({ length: geschaeftsfuehrerCount }).map((_, i) => (
-                <div key={i} style={{ marginTop: '20px' }}>
-                  <h3>Geschäftsführer {i + 1}</h3>
-                  <input placeholder="Name" required />
-                  <input placeholder="Adresse" required />
-                  <input placeholder="Steuer-ID" required />
-                </div>
-              ))}
-            </>
-          )}
+            {/* Dokumente */}
+            <h3 className="sectionTitle">Unterlagen</h3>
+            <p>
+              Bitte laden Sie folgende Dokumente hoch:
+              <br />- Ausweis
+              <br />- ggf. Meldebescheinigung
+              <br />- weitere Unterlagen
+            </p>
 
-          {/* DOKUMENTE */}
-          <h2>Dokumente</h2>
+            <input type="file" multiple onChange={(e) => setWeitereUnterlagen(e.target.files)} />
 
-          <p style={{ marginBottom: '10px', color: '#667085' }}>
-            Bitte laden Sie folgende Dokumente hoch:
-            <br />
-            - Ausweisdokument
-            <br />
-            - Bei ausländischen Staatsbürgern: Reisepass + Meldebescheinigung
-            <br />
-            - Weitere Unterlagen nach Bedarf
-          </p>
+            {/* Unterschrift */}
+            <h3 className="sectionTitle">Unterschrift</h3>
+            <canvas
+              ref={canvasRef}
+              width={400}
+              height={150}
+              style={{ border: '1px solid #ccc' }}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+            />
 
-          <input type="file" multiple />
+            <button type="button" onClick={clearSignature}>
+              löschen
+            </button>
 
+            <button type="submit">
+              {sending ? 'Wird gesendet...' : 'Absenden'}
+            </button>
+
+          </form>
         </div>
       </div>
     </main>
