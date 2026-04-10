@@ -65,6 +65,10 @@ export default function BeratungPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function isJa(value) {
+    return String(value).trim().toLowerCase() === 'ja';
+  }
+
   function resizeCanvas() {
     const canvas = canvasRef.current;
     const wrapper = wrapperRef.current;
@@ -169,6 +173,24 @@ export default function BeratungPage() {
       return;
     }
 
+    if (!form.firmenname) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte den Firmennamen angeben.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (!form.ansprechpartnerVorname || !form.ansprechpartnerNachname || !form.email) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Pflichtfelder beim Ansprechpartner vollständig ausfüllen.'
+      });
+      setSending(false);
+      return;
+    }
+
     if (!form.dsgvoAkzeptiert) {
       setStatus({
         type: 'error',
@@ -196,33 +218,6 @@ export default function BeratungPage() {
       return;
     }
 
-    if (String(form.mitarbeiter).toLowerCase() === 'ja' && !form.betriebsnummer) {
-      setStatus({
-        type: 'error',
-        message: 'Bitte die Betriebsnummer angeben, wenn Mitarbeiter angemeldet werden.'
-      });
-      setSending(false);
-      return;
-    }
-
-    if (form.lohn && String(form.mitarbeiter).toLowerCase() === 'ja' && !form.unternehmensnummer) {
-      setStatus({
-        type: 'error',
-        message: 'Bitte die Unternehmensnummer angeben, wenn Mitarbeiter angemeldet werden.'
-      });
-      setSending(false);
-      return;
-    }
-
-    if (form.lohn && String(form.mitarbeiter).toLowerCase() === 'ja' && !form.bgPin) {
-      setStatus({
-        type: 'error',
-        message: 'Bitte die BG-PIN angeben, wenn Mitarbeiter angemeldet werden.'
-      });
-      setSending(false);
-      return;
-    }
-
     if (form.rechtsform === 'Einzelunternehmen' && !form.steuerIdInhaber) {
       setStatus({
         type: 'error',
@@ -230,6 +225,98 @@ export default function BeratungPage() {
       });
       setSending(false);
       return;
+    }
+
+    if (isJa(form.rueckwirkendeArbeiten) && !form.rueckwirkendAb) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte den Zeitraum für rückwirkende Arbeiten angeben.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.fibu && !form.startFibu) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte angeben, ab wann die Finanzbuchhaltung starten soll.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.lohn && !form.startLohnabrechnung) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte angeben, ab wann die Lohnabrechnung starten soll.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.unternehmensberatung && !form.startUnternehmensberatung) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte angeben, ab wann die Unternehmensberatung starten soll.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.fibu && !form.ustvaLetzteMeldung) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte angeben, wann die letzte Umsatzsteuervoranmeldung erfolgt ist.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.fibu && !form.datevDatenVorhanden) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte angeben, ob DATEV-Daten vom Vorberater vorhanden sind.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.lohn && isJa(form.mitarbeiter)) {
+      if (!form.anzahlMitarbeiter) {
+        setStatus({
+          type: 'error',
+          message: 'Bitte die Anzahl der Mitarbeiter angeben.'
+        });
+        setSending(false);
+        return;
+      }
+
+      if (!form.betriebsnummer) {
+        setStatus({
+          type: 'error',
+          message: 'Bitte die Betriebsnummer angeben, wenn Mitarbeiter angemeldet werden.'
+        });
+        setSending(false);
+        return;
+      }
+
+      if (!form.unternehmensnummer) {
+        setStatus({
+          type: 'error',
+          message: 'Bitte die Unternehmensnummer angeben, wenn Mitarbeiter angemeldet werden.'
+        });
+        setSending(false);
+        return;
+      }
+
+      if (!form.bgPin) {
+        setStatus({
+          type: 'error',
+          message: 'Bitte die BG-PIN angeben, wenn Mitarbeiter angemeldet werden.'
+        });
+        setSending(false);
+        return;
+      }
     }
 
     try {
@@ -450,15 +537,21 @@ export default function BeratungPage() {
                 />
               )}
 
-              <InputField
-                label="Rückwirkende Arbeiten?"
-                placeholder="ja / nein"
-                value={form.rueckwirkendeArbeiten}
-                onChange={(e) => update('rueckwirkendeArbeiten', e.target.value)}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={labelStyle}>Rückwirkende Arbeiten?</label>
+                <select
+                  value={form.rueckwirkendeArbeiten}
+                  onChange={(e) => update('rueckwirkendeArbeiten', e.target.value)}
+                  style={input}
+                >
+                  <option value="">Bitte wählen</option>
+                  <option value="ja">Ja</option>
+                  <option value="nein">Nein</option>
+                </select>
+              </div>
             </div>
 
-            {String(form.rueckwirkendeArbeiten).toLowerCase() === 'ja' && (
+            {isJa(form.rueckwirkendeArbeiten) && (
               <div style={{ marginTop: '14px' }}>
                 <InputField
                   label="Ab welchem Zeitraum rückwirkend?"
@@ -477,53 +570,84 @@ export default function BeratungPage() {
                     value={form.ustvaLetzteMeldung}
                     onChange={(e) => update('ustvaLetzteMeldung', e.target.value)}
                   />
-                  <InputField
-                    label="Buchungsdaten vom Vorberater im DATEV-Format vorhanden?"
-                    placeholder="ja / nein"
-                    value={form.datevDatenVorhanden}
-                    onChange={(e) => update('datevDatenVorhanden', e.target.value)}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={labelStyle}>Buchungsdaten vom Vorberater im DATEV-Format vorhanden?</label>
+                    <select
+                      value={form.datevDatenVorhanden}
+                      onChange={(e) => update('datevDatenVorhanden', e.target.value)}
+                      style={input}
+                    >
+                      <option value="">Bitte wählen</option>
+                      <option value="ja">Ja</option>
+                      <option value="nein">Nein</option>
+                    </select>
+                  </div>
                 </div>
               </>
             )}
 
-            <h3 style={sectionTitle}>Mitarbeiter</h3>
-            <div style={grid}>
-              <InputField
-                label="Werden Mitarbeiter angemeldet?"
-                placeholder="ja / nein"
-                value={form.mitarbeiter}
-                onChange={(e) => update('mitarbeiter', e.target.value)}
-              />
-              <InputField
-                label="Anzahl Mitarbeiter"
-                value={form.anzahlMitarbeiter}
-                onChange={(e) => update('anzahlMitarbeiter', e.target.value)}
-              />
-              <InputField
-                label="Betriebsnummer"
-                value={form.betriebsnummer}
-                onChange={(e) => update('betriebsnummer', e.target.value)}
-                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
-              />
-              <InputField
-                label="Unternehmensnummer"
-                value={form.unternehmensnummer}
-                onChange={(e) => update('unternehmensnummer', e.target.value)}
-                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
-              />
-              <InputField
-                label="BG PIN"
-                value={form.bgPin}
-                onChange={(e) => update('bgPin', e.target.value)}
-                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
-              />
-              <InputField
-                label="Gewünschter Start"
-                value={form.startGewuenscht}
-                onChange={(e) => update('startGewuenscht', e.target.value)}
-              />
-            </div>
+            {form.lohn && (
+              <>
+                <h3 style={sectionTitle}>Mitarbeiter / Lohn</h3>
+                <div style={grid}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={labelStyle}>Werden Mitarbeiter abgerechnet?</label>
+                    <select
+                      value={form.mitarbeiter}
+                      onChange={(e) => update('mitarbeiter', e.target.value)}
+                      style={input}
+                    >
+                      <option value="">Bitte wählen</option>
+                      <option value="ja">Ja</option>
+                      <option value="nein">Nein</option>
+                    </select>
+                  </div>
+
+                  {isJa(form.mitarbeiter) && (
+                    <InputField
+                      label="Anzahl Mitarbeiter"
+                      value={form.anzahlMitarbeiter}
+                      onChange={(e) => update('anzahlMitarbeiter', e.target.value)}
+                    />
+                  )}
+
+                  {isJa(form.mitarbeiter) && (
+                    <InputField
+                      label="Betriebsnummer"
+                      value={form.betriebsnummer}
+                      onChange={(e) => update('betriebsnummer', e.target.value)}
+                      hint="Pflicht, wenn Mitarbeiter abgerechnet werden."
+                    />
+                  )}
+
+                  {isJa(form.mitarbeiter) && (
+                    <InputField
+                      label="Unternehmensnummer"
+                      value={form.unternehmensnummer}
+                      onChange={(e) => update('unternehmensnummer', e.target.value)}
+                      hint="Pflicht, wenn Mitarbeiter abgerechnet werden."
+                    />
+                  )}
+
+                  {isJa(form.mitarbeiter) && (
+                    <InputField
+                      label="BG PIN"
+                      value={form.bgPin}
+                      onChange={(e) => update('bgPin', e.target.value)}
+                      hint="Pflicht, wenn Mitarbeiter abgerechnet werden."
+                    />
+                  )}
+
+                  {isJa(form.mitarbeiter) && (
+                    <InputField
+                      label="Ab wann sollen wir Mitarbeiter abrechnen?"
+                      value={form.startGewuenscht}
+                      onChange={(e) => update('startGewuenscht', e.target.value)}
+                    />
+                  )}
+                </div>
+              </>
+            )}
 
             <h3 style={sectionTitle}>Bestehende Situation</h3>
             <div style={grid}>
