@@ -1,11 +1,20 @@
-/* RESET */
+/* =========================
+   RESET
+========================= */
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: Inter, sans-serif;
   background: #f8f5ef;
+  color: #101828;
 }
 
-/* LAYOUT */
+/* =========================
+   LAYOUT
+========================= */
 .page-bg {
   min-height: 100vh;
   background: linear-gradient(to bottom, #f8f5ef 0%, #f2ede4 100%);
@@ -17,7 +26,9 @@ body {
   margin: 0 auto;
 }
 
-/* HEADER */
+/* =========================
+   HEADER
+========================= */
 .header {
   display: flex;
   align-items: center;
@@ -27,6 +38,7 @@ body {
 
 .logo {
   height: 90px;
+  object-fit: contain;
 }
 
 .brand-title {
@@ -41,7 +53,9 @@ body {
   letter-spacing: 2px;
 }
 
-/* CARD */
+/* =========================
+   CARD / HERO
+========================= */
 .card {
   background: #ffffff;
   border: 1px solid #e7e2d8;
@@ -50,42 +64,84 @@ body {
   box-shadow: 0 12px 30px rgba(0,0,0,0.05);
 }
 
-/* HERO */
 .hero-title {
-  font-size: 44px;
+  font-size: 40px;
   font-weight: 800;
   margin-bottom: 18px;
-  line-height: 1.1;
 }
 
 .hero-text {
-  font-size: 18px;
+  font-size: 16px;
   color: #475467;
-  max-width: 700px;
-  margin-bottom: 25px;
+  margin-bottom: 10px;
 }
 
 .hero-subtext {
-  font-size: 16px;
+  font-size: 14px;
   color: #667085;
-  max-width: 700px;
-  margin-bottom: 35px;
 }
 
-/* BUTTONS */
-.button-row {
+/* =========================
+   GRID (FIXED CENTERED)
+========================= */
+.card-grid {
+  margin-top: 40px;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+
+  justify-content: center;
+  gap: 32px;
+}
+
+/* =========================
+   CARD ITEMS (FIXED HEIGHT + ALIGN)
+========================= */
+.card-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 30px;
+
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  justify-content: space-between;
+
+  max-width: 320px;
+  width: 100%;
 }
 
+/* TEXT */
+.card-title {
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+
+.card-text {
+  color: #667085;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* =========================
+   BUTTONS (FINAL PREMIUM)
+========================= */
+.card-button {
+  width: 100%;
+  text-align: center;
+}
+
+/* PRIMARY */
 .btn-primary {
-  padding: 16px 32px;
+  display: block;
+  padding: 16px 20px;
   border-radius: 999px;
   background: linear-gradient(135deg, #101828 0%, #1f2937 100%);
   color: #ffffff;
   font-weight: 700;
   text-decoration: none;
+  text-align: center;
+
   box-shadow: 0 6px 20px rgba(16, 24, 40, 0.35);
   transition: all 0.25s ease;
 }
@@ -95,15 +151,18 @@ body {
   box-shadow: 0 10px 30px rgba(16, 24, 40, 0.45);
 }
 
-
+/* SECONDARY */
 .btn-secondary {
-  padding: 16px 32px;
+  display: block;
+  padding: 16px 20px;
   border-radius: 999px;
   background: #ffffff;
   border: 1px solid #d0d5dd;
   color: #101828;
   font-weight: 700;
   text-decoration: none;
+  text-align: center;
+
   box-shadow: 0 4px 14px rgba(16, 24, 40, 0.05);
   transition: all 0.25s ease;
 }
@@ -113,7 +172,9 @@ body {
   border-color: #101828;
 }
 
-/* FEATURES */
+/* =========================
+   FEATURES
+========================= */
 .features {
   margin-top: 30px;
   display: grid;
@@ -138,40 +199,11 @@ body {
   color: #667085;
 }
 
-/* FOOTER */
+/* =========================
+   FOOTER
+========================= */
 .footer {
   margin-top: 40px;
   font-size: 14px;
   color: #667085;
-}
-.card-grid {
-  margin-top: 30px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-}
-.card-item {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 22px;
-  padding: 30px;
-
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-
-  min-height: 260px;
-}
-.card-title {
-  font-size: 22px;
-  margin-bottom: 12px;
-}
-.card-text {
-  color: #667085;
-  line-height: 1.6;
-  margin-bottom: 20px;
-}
-.card-button {
-  width: 100%;
-  text-align: center;
 }
