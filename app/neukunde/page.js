@@ -20,7 +20,7 @@ export default function NeukundePage() {
           </div>
         </div>
 
-        {/* EINLEITUNG */}
+        {/* TEXT */}
         <section className="card">
           <h1 className="hero-title">
             Angaben zur Zusammenarbeit
@@ -28,16 +28,15 @@ export default function NeukundePage() {
 
           <p className="hero-text">
             Über dieses System erfassen wir alle relevanten Informationen für die Zusammenarbeit.
-            Die Daten werden strukturiert übermittelt und bilden die Grundlage für die weitere Bearbeitung.
           </p>
 
           <p className="hero-subtext">
-            Bitte wählen Sie den passenden Bereich und geben Sie die erforderlichen Informationen vollständig an.
+            Bitte wählen Sie den passenden Bereich.
           </p>
         </section>
 
-        {/* AUSWAHL */}
-        <section className="features">
+        {/* KARTEN */}
+        <section className="card-grid">
 
           <Card
             title="Unternehmensgründung"
@@ -69,24 +68,17 @@ export default function NeukundePage() {
 
 function Card({ title, text, link, button }) {
   return (
-    <div className="feature-card" style={{ padding: '30px' }}>
-      
-      <h2 style={{
-        fontSize: '22px',
-        marginBottom: '12px'
-      }}>
-        {title}
-      </h2>
+    <div className="card-item">
 
-      <p style={{
-        color: '#667085',
-        marginBottom: '25px',
-        lineHeight: 1.6
-      }}>
-        {text}
-      </p>
+      <div>
+        <h2 className="card-title">{title}</h2>
 
-      <Link href={link} className="btn-primary">
+        <p className="card-text">
+          {text}
+        </p>
+      </div>
+
+      <Link href={link} className="btn-primary card-button">
         {button}
       </Link>
 
