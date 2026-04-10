@@ -301,93 +301,80 @@ export default function GruendungPage() {
               />
             </div>
 
-           <h3 style={sectionTitle}>Gründungsvorhaben</h3>
+            <h3 style={sectionTitle}>Gründungsvorhaben</h3>
+            <div style={grid}>
+              <InputField
+                label="Gewünschter Firmenname"
+                value={form.firmenname}
+                onChange={(e) => update('firmenname', e.target.value)}
+                required
+              />
 
-<div style={grid}>
-  <InputField
-    label="Gewünschter Firmenname"
-    value={form.firmenname}
-    onChange={(e) => update('firmenname', e.target.value)}
-    required
-  />
-
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-    <label style={labelStyle}>Rechtsform *</label>
-    <select
-      value={form.rechtsform}
-      onChange={(e) => update('rechtsform', e.target.value)}
-      required
-      style={input}
-    >
-      <option value="">Bitte wählen</option>
-      <option value="Einzelunternehmen">Einzelunternehmen</option>
-      <option value="GmbH">GmbH</option>
-      <option value="UG">UG (haftungsbeschränkt)</option>
-      <option value="AG">AG</option>
-      <option value="GbR">GbR</option>
-      <option value="OHG">OHG</option>
-      <option value="KG">KG</option>
-    </select>
-  </div>
-
-  <InputField
-    label="Unternehmenssitz"
-    placeholder="Ort"
-    value={form.unternehmenssitz}
-    onChange={(e) => update('unternehmenssitz', e.target.value)}
-    required
-  />
-
-  <InputField
-    label="Geschäftsadresse vorhanden?"
-    placeholder="ja / nein"
-    value={form.geschaeftsadresseVorhanden}
-    onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
-  />
-
-  <InputField
-    label="Tätigkeit / Branche"
-    value={form.taetigkeit}
-    onChange={(e) => update('taetigkeit', e.target.value)}
-    required
-  />
-</div>
-
-{/* 🔥 DIREKT DARUNTER → GEHÖRT ZUM FIRMENNAMEN */}
-{form.rechtsform !== 'Einzelunternehmen' && (
-  <div style={{ marginTop: '14px', display: 'grid', gap: '14px', maxWidth: '540px' }}>
-    <InputField
-      label="Alternativer Firmenname 1"
-      value={form.alternativeFirmennamen}
-      onChange={(e) => update('alternativeFirmennamen', e.target.value)}
-      required
-    />
-
-    <InputField
-      label="Alternativer Firmenname 2"
-      value={form.alternativeFirmennamen2}
-      onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
-      required
-    />
-  </div>
-)}
-            {form.rechtsform !== 'Einzelunternehmen' && (
-              <div style={{ marginTop: '14px', display: 'grid', gap: '14px' }}>
-                <InputField
-                  label="Alternativer Firmenname 1"
-                  value={form.alternativeFirmennamen}
-                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={labelStyle}>Rechtsform *</label>
+                <select
+                  value={form.rechtsform}
+                  onChange={(e) => update('rechtsform', e.target.value)}
                   required
-                />
-
-                <InputField
-                  label="Alternativer Firmenname 2"
-                  value={form.alternativeFirmennamen2}
-                  onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
-                  required
-                />
+                  style={input}
+                >
+                  <option value="">Bitte wählen</option>
+                  <option value="Einzelunternehmen">Einzelunternehmen</option>
+                  <option value="GmbH">GmbH</option>
+                  <option value="UG">UG (haftungsbeschränkt)</option>
+                  <option value="AG">AG</option>
+                  <option value="GbR">GbR</option>
+                  <option value="OHG">OHG</option>
+                  <option value="KG">KG</option>
+                </select>
               </div>
-            )}
+
+              <InputField
+                label="Unternehmenssitz"
+                placeholder="Ort"
+                value={form.unternehmenssitz}
+                onChange={(e) => update('unternehmenssitz', e.target.value)}
+                required
+              />
+
+              <InputField
+                label="Geschäftsadresse vorhanden?"
+                placeholder="ja / nein"
+                value={form.geschaeftsadresseVorhanden}
+                onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
+              />
+            </div>
+
+            <div style={{ marginTop: '14px', maxWidth: '540px', display: 'grid', gap: '14px' }}>
+              {form.rechtsform !== 'Einzelunternehmen' && (
+                <>
+                  <InputField
+                    label="Alternativer Firmenname 1"
+                    value={form.alternativeFirmennamen}
+                    onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+                    required
+                  />
+
+                  <InputField
+                    label="Alternativer Firmenname 2"
+                    value={form.alternativeFirmennamen2}
+                    onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
+                    required
+                  />
+                </>
+              )}
+            </div>
+
+            <div style={{ marginTop: '20px' }}>
+              <label style={labelStyle}>Geschäftszweck *</label>
+              <textarea
+                placeholder="Bitte beschreiben Sie den Geschäftszweck ausführlich"
+                value={form.taetigkeit}
+                onChange={(e) => update('taetigkeit', e.target.value)}
+                required
+                style={textarea}
+              />
+            </div>
 
             {form.rechtsform !== 'Einzelunternehmen' && (
               <>
@@ -758,7 +745,7 @@ const fileInput = {
 
 const textarea = {
   width: '100%',
-  minHeight: '110px',
+  minHeight: '120px',
   padding: '12px',
   borderRadius: '10px',
   border: '1px solid #d0d5dd',
