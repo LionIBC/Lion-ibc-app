@@ -144,3 +144,34 @@ body {
   font-size: 14px;
   color: #667085;
 }
+.card-grid {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.card-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 30px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  min-height: 260px;
+}
+.card-title {
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+.card-text {
+  color: #667085;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.card-button {
+  width: 100%;
+  text-align: center;
+}
