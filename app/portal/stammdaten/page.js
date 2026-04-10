@@ -44,7 +44,8 @@ const emptyChangeState = {
   geschaeftsfuehrer: '',
   inhaber: '',
   ansprechpartner: '',
-  begruendung: ''
+  begruendung: '',
+  bestaetigt: false
 };
 
 export default function StammdatenPage() {
@@ -59,14 +60,22 @@ export default function StammdatenPage() {
     e.preventDefault();
 
     const hasAnyChange = Object.entries(changes).some(([key, value]) => {
-      if (key === 'begruendung') return false;
+      if (key === 'begruendung' || key === 'bestaetigt') return false;
       return String(value).trim() !== '';
     });
 
     if (!hasAnyChange) {
       setStatus({
         type: 'error',
-        message: 'Bitte mindestens eine gewünschte Änderung eintragen.'
+        message: 'Bitte tragen Sie mindestens eine gewünschte Änderung ein.'
+      });
+      return;
+    }
+
+    if (!changes.bestaetigt) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte bestätigen Sie die Stammdatenanpassung vor dem Absenden.'
       });
       return;
     }
@@ -74,7 +83,7 @@ export default function StammdatenPage() {
     setStatus({
       type: 'success',
       message:
-        'Die Stammdatenanpassung wurde eingereicht. Nach interner Prüfung werden freigegebene Änderungen übernommen.'
+        'Ihre Stammdatenanpassung wurde eingereicht und wird intern geprüft. Freigegebene Änderungen werden anschließend übernommen.'
     });
 
     setChanges(emptyChangeState);
@@ -88,14 +97,16 @@ export default function StammdatenPage() {
           <div style={badge}>Kundenportal</div>
           <h1 style={title}>Stammdaten</h1>
           <p style={subtitle}>
-            Hier sehen Sie die aktuell hinterlegten Stammdaten. Änderungen werden
-            nicht direkt überschrieben, sondern als Anpassung eingereicht und nach
-            interner Prüfung freigegeben.
+            Hier sehen Sie Ihre aktuell hinterlegten Stammdaten. Änderungswünsche
+            können direkt eingetragen und anschließend zur internen Prüfung
+            eingereicht werden.
           </p>
 
-          <div style={infoStrip}>
-            <span style={{ fontWeight: 700 }}>Kundennummer:</span>
-            <span>{currentData.kundennummer}</span>
+          <div style={topInfoRow}>
+            <div style={topInfoBox}>
+              <span style={topInfoLabel}>Kundennummer</span>
+              <span style={topInfoValue}>{currentData.kundennummer}</span>
+            </div>
           </div>
         </section>
 
@@ -103,10 +114,7 @@ export default function StammdatenPage() {
         {status?.type === 'success' && <div style={successBox}>{status.message}</div>}
 
         <form onSubmit={handleSubmit}>
-          <Section
-            title="Unternehmensdaten"
-            description="Aktuell hinterlegte Daten und gewünschte Änderungen."
-          >
+          <Section title="Unternehmensdaten">
             <ComparisonField
               label="Firmenname"
               currentValue={currentData.firmenname}
@@ -146,16 +154,13 @@ export default function StammdatenPage() {
             />
           </Section>
 
-          <Section
-            title="Steuerliche Daten"
-            description="Steuerliche Änderungen werden erst nach Prüfung freigegeben."
-          >
+          <Section title="Steuerliche Daten">
             <ComparisonField
               label="Steuernummern"
               currentValue={currentData.steuernummern.join(', ')}
               newValue={changes.steuernummern}
               onChange={(v) => update('steuernummern', v)}
-              placeholder="Neue oder zusätzliche Steuernummern eintragen"
+              placeholder="Neue oder zusätzliche Steuernummern"
             />
             <ComparisonField
               label="USt-ID"
@@ -168,7 +173,6 @@ export default function StammdatenPage() {
               currentValue={currentData.wirtschaftsId}
               newValue={changes.wirtschaftsId}
               onChange={(v) => update('wirtschaftsId', v)}
-              placeholder="Nur eintragen, wenn abweichend oder neu vergeben"
             />
             <ComparisonField
               label="Umsatzsteuer-Voranmeldung"
@@ -187,20 +191,17 @@ export default function StammdatenPage() {
               currentValue={currentData.dauerfristverlaengerung}
               newValue={changes.dauerfristverlaengerung}
               onChange={(v) => update('dauerfristverlaengerung', v)}
-              placeholder="z. B. Ja oder Nein"
+              placeholder="Ja oder Nein"
             />
           </Section>
 
-          <Section
-            title="Gesellschafter / Geschäftsführer / Inhaber"
-            description="Mehrere Änderungen können gesammelt in einem Feld eingetragen werden."
-          >
+          <Section title="Gesellschafter / Geschäftsführer / Inhaber">
             <ComparisonField
               label="Gesellschafter"
               currentValue={formatList(currentData.gesellschafter)}
               newValue={changes.gesellschafter}
               onChange={(v) => update('gesellschafter', v)}
-              placeholder="Neue Gesellschafter oder Änderungen eintragen"
+              placeholder="Änderungen oder Ergänzungen"
               textarea
             />
             <ComparisonField
@@ -208,7 +209,7 @@ export default function StammdatenPage() {
               currentValue={formatList(currentData.geschaeftsfuehrer)}
               newValue={changes.geschaeftsfuehrer}
               onChange={(v) => update('geschaeftsfuehrer', v)}
-              placeholder="Neue Geschäftsführer oder Änderungen eintragen"
+              placeholder="Änderungen oder Ergänzungen"
               textarea
             />
             <ComparisonField
@@ -216,61 +217,68 @@ export default function StammdatenPage() {
               currentValue={currentData.inhaber || 'Nicht zutreffend'}
               newValue={changes.inhaber}
               onChange={(v) => update('inhaber', v)}
-              placeholder="Nur bei Einzelunternehmen relevant"
+              placeholder="Nur bei Einzelunternehmen"
             />
           </Section>
 
-          <Section
-            title="Ansprechpartner / Kommunikation"
-            description="Mehrere Ansprechpartner, E-Mails und Telefonnummern können hier gesammelt gemeldet werden."
-          >
+          <Section title="Ansprechpartner / Kommunikation">
             <ComparisonField
-              label="Aktuelle Ansprechpartner"
+              label="Ansprechpartner"
               currentValue={formatContacts(currentData.ansprechpartner)}
               newValue={changes.ansprechpartner}
               onChange={(v) => update('ansprechpartner', v)}
-              placeholder="Neue Ansprechpartner, E-Mails oder Telefonnummern eintragen"
+              placeholder="Neue Ansprechpartner, E-Mails oder Telefonnummern"
               textarea
             />
           </Section>
 
-          <Section
-            title="Hinweis zur Änderung"
-            description="Optional können Sie kurz erläutern, warum die Änderung erforderlich ist."
-          >
+          <Section title="Hinweis">
             <div style={singleFieldWrap}>
-              <label style={labelStyle}>Begründung / Hinweis</label>
+              <label style={labelStyle}>Zusätzlicher Hinweis</label>
               <textarea
                 value={changes.begruendung}
                 onChange={(e) => update('begruendung', e.target.value)}
-                placeholder="Optionaler Hinweis zur Änderung"
+                placeholder="Optionaler Hinweis zur beantragten Änderung"
                 style={textareaStyle}
               />
             </div>
           </Section>
 
-          <div style={footerBar}>
-            <div style={footerHint}>
-              Änderungen werden zunächst intern geprüft und erst danach in die
-              gültigen Stammdaten übernommen.
+          <section style={footerCard}>
+            <label style={confirmRow}>
+              <input
+                type="checkbox"
+                checked={changes.bestaetigt}
+                onChange={(e) => update('bestaetigt', e.target.checked)}
+                style={{ width: 18, height: 18, marginTop: 2 }}
+              />
+              <span>
+                Ich bestätige, dass die eingetragenen Änderungswünsche korrekt sind.
+                Die Anpassung soll zur internen Prüfung eingereicht werden.
+              </span>
+            </label>
+
+            <div style={footerBottom}>
+              <div style={footerHint}>
+                Die aktuell gespeicherten Stammdaten bleiben bis zur internen
+                Freigabe unverändert bestehen.
+              </div>
+
+              <button type="submit" style={submitButton}>
+                Stammdaten anpassen
+              </button>
             </div>
-            <button type="submit" style={submitButton}>
-              Stammdatenanpassung einreichen
-            </button>
-          </div>
+          </section>
         </form>
       </div>
     </main>
   );
 }
 
-function Section({ title, description, children }) {
+function Section({ title, children }) {
   return (
     <section style={sectionCard}>
-      <div style={{ marginBottom: 18 }}>
-        <h2 style={sectionTitle}>{title}</h2>
-        <p style={sectionDescription}>{description}</p>
-      </div>
+      <h2 style={sectionTitle}>{title}</h2>
       <div style={sectionGrid}>{children}</div>
     </section>
   );
@@ -281,41 +289,43 @@ function ComparisonField({
   currentValue,
   newValue,
   onChange,
-  placeholder = 'Gewünschte Änderung eintragen',
+  placeholder = 'Änderung eintragen',
   type = 'text',
   textarea = false
 }) {
+  const hasValue = String(newValue || '').trim() !== '';
+
   return (
     <div style={comparisonWrap}>
-      <label style={labelStyle}>{label}</label>
+      <div style={rowLabel}>{label}</div>
 
-      <div style={comparisonCard}>
-        <div style={currentBox}>
-          <div style={miniLabel}>Aktuell hinterlegt</div>
-          <div style={currentValueStyle}>{currentValue || '—'}</div>
-        </div>
+      <div style={comparisonRow}>
+        <div style={currentValuePlain}>{currentValue || '—'}</div>
 
         <div style={arrowBox}>→</div>
 
-        <div style={newBox}>
-          <div style={miniLabel}>Neue gewünschte Angabe</div>
-          {textarea ? (
-            <textarea
-              value={newValue}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={placeholder}
-              style={textareaStyle}
-            />
-          ) : (
-            <input
-              type={type}
-              value={newValue}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={placeholder}
-              style={inputStyle}
-            />
-          )}
-        </div>
+        {textarea ? (
+          <textarea
+            value={newValue}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            style={{
+              ...textareaStyle,
+              ...(hasValue ? changedFieldStyle : {})
+            }}
+          />
+        ) : (
+          <input
+            type={type}
+            value={newValue}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            style={{
+              ...inputStyle,
+              ...(hasValue ? changedFieldStyle : {})
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -353,10 +363,10 @@ const pageInner = {
 
 const heroCard = {
   background: '#ffffff',
-  border: '1px solid #e7e2d8',
+  border: '1px solid #eee7da',
   borderRadius: '24px',
   padding: '34px 36px',
-  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.06)',
+  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.05)',
   marginBottom: '22px'
 };
 
@@ -369,7 +379,7 @@ const badge = {
   color: '#5f5a4f',
   fontSize: '14px',
   fontWeight: '600',
-  marginBottom: '20px'
+  marginBottom: '18px'
 };
 
 const title = {
@@ -381,30 +391,49 @@ const title = {
 
 const subtitle = {
   fontSize: '16px',
-  lineHeight: 1.8,
+  lineHeight: 1.75,
   color: '#475467',
-  maxWidth: '850px',
+  maxWidth: '860px',
   margin: 0
 };
 
-const infoStrip = {
+const topInfoRow = {
   marginTop: '22px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '8px',
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '12px'
+};
+
+const topInfoBox = {
   padding: '12px 16px',
   borderRadius: '14px',
-  background: '#f8f4ec',
+  background: '#faf8f3',
   border: '1px solid #eadfcd',
-  color: '#5d4a2f'
+  display: 'flex',
+  gap: '10px',
+  alignItems: 'center'
+};
+
+const topInfoLabel = {
+  fontSize: '13px',
+  fontWeight: '700',
+  color: '#5d4a2f',
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em'
+};
+
+const topInfoValue = {
+  fontSize: '14px',
+  color: '#101828',
+  fontWeight: '600'
 };
 
 const sectionCard = {
   background: '#ffffff',
-  border: '1px solid #e7e2d8',
+  border: '1px solid #eee7da',
   borderRadius: '22px',
-  padding: '28px',
-  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.04)',
+  padding: '26px 28px',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
   marginBottom: '18px'
 };
 
@@ -412,14 +441,7 @@ const sectionTitle = {
   fontSize: '24px',
   fontWeight: '700',
   color: '#101828',
-  margin: '0 0 8px'
-};
-
-const sectionDescription = {
-  fontSize: '14px',
-  lineHeight: 1.7,
-  color: '#667085',
-  margin: 0
+  margin: '0 0 18px'
 };
 
 const sectionGrid = {
@@ -432,56 +454,40 @@ const comparisonWrap = {
   gap: '8px'
 };
 
-const labelStyle = {
+const rowLabel = {
   fontSize: '14px',
   fontWeight: '700',
   color: '#344054'
 };
 
-const comparisonCard = {
+const comparisonRow = {
   display: 'grid',
-  gridTemplateColumns: '1fr 60px 1fr',
+  gridTemplateColumns: '1fr 40px 1fr',
   gap: '14px',
-  alignItems: 'stretch'
+  alignItems: 'center'
 };
 
-const currentBox = {
-  background: '#f9fafb',
-  border: '1px solid #e4e7ec',
-  borderRadius: '16px',
-  padding: '16px'
-};
-
-const newBox = {
-  background: '#fffdf8',
-  border: '1px solid #eadfcd',
-  borderRadius: '16px',
-  padding: '16px'
+const currentValuePlain = {
+  padding: '12px 4px',
+  fontSize: '14px',
+  lineHeight: 1.7,
+  color: '#101828',
+  whiteSpace: 'pre-wrap',
+  borderBottom: '1px solid #eceff3',
+  minHeight: '24px'
 };
 
 const arrowBox = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '22px',
+  textAlign: 'center',
+  fontSize: '20px',
   color: '#8c6b43',
   fontWeight: '700'
 };
 
-const miniLabel = {
-  fontSize: '12px',
+const labelStyle = {
+  fontSize: '14px',
   fontWeight: '700',
-  color: '#667085',
-  marginBottom: '8px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em'
-};
-
-const currentValueStyle = {
-  whiteSpace: 'pre-wrap',
-  lineHeight: 1.7,
-  color: '#101828',
-  fontSize: '14px'
+  color: '#344054'
 };
 
 const inputStyle = {
@@ -509,18 +515,36 @@ const textareaStyle = {
   lineHeight: 1.6
 };
 
+const changedFieldStyle = {
+  background: '#fff7ed',
+  border: '1px solid #f5c27a'
+};
+
 const singleFieldWrap = {
   display: 'grid',
   gap: '8px'
 };
 
-const footerBar = {
-  marginTop: '24px',
+const footerCard = {
   background: '#ffffff',
-  border: '1px solid #e7e2d8',
+  border: '1px solid #eee7da',
   borderRadius: '22px',
-  padding: '22px 24px',
-  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.04)',
+  padding: '24px',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
+  display: 'grid',
+  gap: '20px'
+};
+
+const confirmRow = {
+  display: 'flex',
+  gap: '12px',
+  alignItems: 'flex-start',
+  lineHeight: 1.7,
+  color: '#344054',
+  fontSize: '14px'
+};
+
+const footerBottom = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
@@ -564,4 +588,3 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
-
