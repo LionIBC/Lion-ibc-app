@@ -1,334 +1,719 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import FormHeader from '../../../components/FormHeader';
+import { useEffect, useRef, useState } from 'react';
 
-const initialState = {
-  firmenname: '',
-  rechtsform: 'GmbH',
-  rechtsformSonstige: '',
-  gruendungsdatum: '',
-  branche: '',
-  taetigkeit: '',
-  website: '',
-  strasse: '',
-  plz: '',
-  ort: '',
-  land: 'Deutschland',
+export default function BeratungPage() {
+  const initialState = {
+    firmenname: '',
+    ansprechpartnerVorname: '',
+    ansprechpartnerNachname: '',
+    email: '',
+    telefon: '',
 
-  ansprechpartnerVorname: '',
-  ansprechpartnerNachname: '',
-  ansprechpartnerPosition: '',
-  email: '',
-  telefon: '',
+    strasse: '',
+    plz: '',
+    ort: '',
+    rechtsform: '',
+    branche: '',
 
-  unternehmensnummer: '',
-  betriebsnummer: '',
-  bgPin: '',
+    fibu: false,
+    lohn: false,
+    unternehmensberatung: false,
 
-  steuernummer: '',
-  ustid: '',
-  handelsregisterVorhanden: 'Nein',
-  handelsregisternummer: '',
-  registergericht: '',
-  mitarbeiterzahl: '',
+    mitarbeiter: '',
+    anzahlMitarbeiter: '',
+    betriebsnummer: '',
 
-  inhaber1: '',
-  inhaber2: '',
-  gesellschafter1: '',
-  gesellschafter2: '',
-  geschaeftsfuehrer1: '',
-  geschaeftsfuehrer2: '',
+    steuerberaterBisher: '',
+    startGewuenscht: '',
+    hinweise: '',
 
-  fibuGewuenscht: 'Ja',
-  fibuAb: '',
-  lohnGewuenscht: 'Nein',
-  lohnAb: '',
-  lohnMitarbeiterzahl: '',
-  jahresabschlussGewuenscht: 'Ja',
-  steuererklaerungenGewuenscht: 'Ja',
-  sonstigeBeratungGewuenscht: 'Nein',
-  sonstigeBeratungText: '',
-  dringlichkeit: 'innerhalb 1 Monat',
+    dsgvoAkzeptiert: false,
+    vollmachtAkzeptiert: false
+  };
 
-  ustPflichtig: 'Ja',
-  ustTurnus: 'monatlich',
-  ustFinanzamtStatus: 'Unklar',
-  lohnDurchUns: 'Nein',
-  lohnsteuerTurnus: '',
-  lohnFinanzamtStatus: 'Unklar',
-
-  notizen: '',
-  datenschutzBestaetigt: false
-};
-
-const rechtsformen = [
-  'Einzelunternehmen',
-  'Freiberufler',
-  'GbR',
-  'OHG',
-  'KG',
-  'GmbH',
-  'UG (haftungsbeschränkt)',
-  'AG',
-  'Sonstige'
-];
-
-function InputField({ id, label, value, onChange, type = 'text', required = false, placeholder = '' }) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}{required ? ' *' : ''}</label>
-      <input id={id} type={type} value={value} placeholder={placeholder} onChange={onChange} required={required} />
-    </div>
-  );
-}
-
-function SelectField({ id, label, value, onChange, options, required = false }) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}{required ? ' *' : ''}</label>
-      <select id={id} value={value} onChange={onChange} required={required}>
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-    </div>
-  );
-}
-
-export default function NeukundePage() {
   const [form, setForm] = useState(initialState);
-  const [status, setStatus] = useState(null);
   const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState(null);
 
-  const showInhaber = useMemo(
-    () => ['Einzelunternehmen', 'Freiberufler'].includes(form.rechtsform),
-    [form.rechtsform]
-  );
-  const showGesellschafter = useMemo(
-    () => ['GbR', 'OHG', 'KG', 'GmbH', 'UG (haftungsbeschränkt)', 'AG', 'Sonstige'].includes(form.rechtsform),
-    [form.rechtsform]
-  );
-  const showGeschaeftsfuehrer = useMemo(
-    () => ['GmbH', 'UG (haftungsbeschränkt)', 'AG', 'Sonstige'].includes(form.rechtsform),
-    [form.rechtsform]
-  );
+  const [gewerbeanmeldung, setGewerbeanmeldung] = useState(null);
+  const [handelsregisterauszug, setHandelsregisterauszug] = useState(null);
+  const [weitereUnterlagen, setWeitereUnterlagen] = useState([]);
+
+  const canvasRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const hasSignatureRef = useRef(false);
 
   function update(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resizeCanvas() {
+    const canvas = canvasRef.current;
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
+
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const width = wrapper.offsetWidth;
+    const height = 180;
+
+    const oldData = canvas.toDataURL();
+
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#101828';
+
+    if (oldData && hasSignatureRef.current) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+      };
+      img.src = oldData;
+    }
+  }
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  function getPosition(event) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    if (event.touches && event.touches[0]) {
+      return {
+        x: event.touches[0].clientX - rect.left,
+        y: event.touches[0].clientY - rect.top
+      };
+    }
+
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function startDrawing(event) {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPosition(event);
+
+    isDrawingRef.current = true;
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    event.preventDefault();
+  }
+
+  function draw(event) {
+    if (!isDrawingRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPosition(event);
+
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    hasSignatureRef.current = true;
+    event.preventDefault();
+  }
+
+  function stopDrawing() {
+    isDrawingRef.current = false;
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasSignatureRef.current = false;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSending(true);
     setStatus(null);
-    const mitarbeiter = form.mitarbeiter;
-const betriebsnummer = form.betriebsnummer;
 
-if (mitarbeiter === 'ja' && !betriebsnummer) {
-  setStatus({
-    type: 'error',
-    message: 'Bitte Betriebsnummer angeben, wenn Mitarbeiter angemeldet werden.'
-  });
-  setSending(false);
-  return;
-}
+    if (!form.fibu && !form.lohn && !form.unternehmensberatung) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte mindestens einen Leistungsbereich auswählen.'
+      });
+      setSending(false);
+      return;
+    }
 
+    if (!form.dsgvoAkzeptiert) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Datenschutzerklärung akzeptieren.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (!form.vollmachtAkzeptiert) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Vollmacht bestätigen.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (!hasSignatureRef.current) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte im Unterschriftenfeld unterschreiben.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (String(form.mitarbeiter).toLowerCase() === 'ja' && !form.betriebsnummer) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Betriebsnummer angeben, wenn Mitarbeiter angemeldet werden.'
+      });
+      setSending(false);
+      return;
+    }
 
     try {
+      const formData = new FormData();
+
+      Object.entries(form).forEach(([key, value]) => {
+        formData.append(key, typeof value === 'boolean' ? String(value) : value);
+      });
+
+      const signatureDataUrl = canvasRef.current.toDataURL('image/png');
+      formData.append('unterschrift', signatureDataUrl);
+
+      if (gewerbeanmeldung) {
+        formData.append('gewerbeanmeldung', gewerbeanmeldung);
+      }
+
+      if (handelsregisterauszug) {
+        formData.append('handelsregisterauszug', handelsregisterauszug);
+      }
+
+      Array.from(weitereUnterlagen).forEach((file) => {
+        formData.append('weitereUnterlagen', file);
+      });
+
       const res = await fetch('/api/new-client', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: formData
       });
 
       const data = await res.json();
+
       if (res.ok) {
-        setStatus({ type: 'success', message: data.message });
+        setStatus({
+          type: 'success',
+          message: data.message || 'Die Daten wurden erfolgreich übermittelt.'
+        });
         setForm(initialState);
+        setGewerbeanmeldung(null);
+        setHandelsregisterauszug(null);
+        setWeitereUnterlagen([]);
+        clearSignature();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setStatus({ type: 'error', message: data.message || 'Fehler beim Senden.' });
+        setStatus({
+          type: 'error',
+          message: data.message || 'Fehler beim Senden.'
+        });
       }
-    } catch {
-      setStatus({ type: 'error', message: 'Die Anfrage konnte nicht gesendet werden.' });
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: 'Fehler beim Senden.'
+      });
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <main className="container">
-      <div className="formCard">
-        <FormHeader
-          title="Neukundenaufnahme Unternehmen"
-          description="Bitte alle wesentlichen Firmendaten, Verantwortlichen und gewünschten Leistungen eintragen. Pflichtfelder sind markiert."
-        />
-
-        <div className="noticeBox">
-          Bitte tragen Sie die wichtigsten Unternehmensdaten vollständig ein. Nach dem Absenden erhalten Sie eine Bestätigung und Lion IBC wird automatisch per E-Mail informiert.
+    <main
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
+        padding: '32px 20px 60px'
+      }}
+    >
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <img
+            src="/logo.png"
+            alt="Lion IBC Logo"
+            style={{ height: '120px', width: 'auto', display: 'block' }}
+          />
         </div>
 
-        {status && status.type === 'error' && <div className='error' style={{ margin: '18px 0' }}>{status.message}</div>}
-        {status && status.type === 'success' && (
-          <div className='successPanel'>
-            <h4>✅ Vielen Dank!</h4>
-            <p>Ihre Daten wurden erfolgreich übermittelt.</p>
-            <p>Wir melden uns kurzfristig bei Ihnen.</p>
-            <p>📎 Bitte senden Sie ggf. fehlende Unterlagen separat per E-Mail.</p>
-          </div>
-        )}
+        <section style={card}>
+          <div style={badge}>Neukundenaufnahme</div>
 
-        <form onSubmit={handleSubmit}>
-          <section className="sectionCard">
-            <h3>1. Firmendaten</h3>
-            <div className="formGrid">
-              <InputField id="firmenname" label="Firmenname" value={form.firmenname} onChange={(e) => update('firmenname', e.target.value)} required />
-              <SelectField id="rechtsform" label="Rechtsform" value={form.rechtsform} onChange={(e) => update('rechtsform', e.target.value)} options={rechtsformen} required />
-              {form.rechtsform === 'Sonstige' && (
-                <InputField id="rechtsformSonstige" label="Sonstige Rechtsform" value={form.rechtsformSonstige} onChange={(e) => update('rechtsformSonstige', e.target.value)} required />
-              )}
-              <InputField id="gruendungsdatum" label="Gründungsdatum" type="date" value={form.gruendungsdatum} onChange={(e) => update('gruendungsdatum', e.target.value)} />
-              <InputField id="branche" label="Branche" value={form.branche} onChange={(e) => update('branche', e.target.value)} required />
-              <InputField id="taetigkeit" label="Geschäftszweck / Tätigkeit" value={form.taetigkeit} onChange={(e) => update('taetigkeit', e.target.value)} />
-              <InputField id="website" label="Website" value={form.website} onChange={(e) => update('website', e.target.value)} />
-              <InputField id="mitarbeiterzahl" label="Anzahl Mitarbeiter aktuell" value={form.mitarbeiterzahl} onChange={(e) => update('mitarbeiterzahl', e.target.value)} />
-              <InputField id="strasse" label="Straße / Hausnummer" value={form.strasse} onChange={(e) => update('strasse', e.target.value)} required />
-              <InputField id="plz" label="PLZ" value={form.plz} onChange={(e) => update('plz', e.target.value)} required />
-              <InputField id="ort" label="Ort" value={form.ort} onChange={(e) => update('ort', e.target.value)} required />
-              <InputField id="land" label="Land" value={form.land} onChange={(e) => update('land', e.target.value)} required />
-            </div>
-          </section>
+          <h1 style={title}>Digitale Aufnahme für FiBu, Lohn und Unternehmensberatung</h1>
 
-          <section className="sectionCard">
-            <h3>2. Ansprechpartner</h3>
-            <div className="formGrid">
-              <InputField id="ansprechpartnerVorname" label="Vorname" value={form.ansprechpartnerVorname} onChange={(e) => update('ansprechpartnerVorname', e.target.value)} required />
-              <InputField id="ansprechpartnerNachname" label="Nachname" value={form.ansprechpartnerNachname} onChange={(e) => update('ansprechpartnerNachname', e.target.value)} required />
-              <InputField id="ansprechpartnerPosition" label="Position" value={form.ansprechpartnerPosition} onChange={(e) => update('ansprechpartnerPosition', e.target.value)} required />
-              <InputField id="email" label="E-Mail" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
-              <InputField id="telefon" label="Telefon" value={form.telefon} onChange={(e) => update('telefon', e.target.value)} required />
-            </div>
-          </section>
+          <p style={subtitle}>
+            Übermitteln Sie uns die relevanten Unternehmensdaten. So können wir die
+            Zusammenarbeit strukturiert aufbauen und Ihre Unterlagen direkt sauber in die
+            Kundenakte übernehmen.
+          </p>
 
-          <section className="sectionCard">
-            <h3>3. Unternehmensnummern</h3>
-            <div className="formGrid">
-              <InputField id="unternehmensnummer" label="Unternehmensnummer" value={form.unternehmensnummer} onChange={(e) => update('unternehmensnummer', e.target.value)} />
-              <InputField id="betriebsnummer" label="Betriebsnummer" value={form.betriebsnummer} onChange={(e) => update('betriebsnummer', e.target.value)} />
-              <InputField id="bgPin" label="BG-PIN" value={form.bgPin} onChange={(e) => update('bgPin', e.target.value)} />
-            </div>
-          </section>
+          {status && status.type === 'error' && <div style={errorBox}>{status.message}</div>}
+          {status && status.type === 'success' && <div style={successBox}>{status.message}</div>}
 
-          <section className="sectionCard">
-            <h3>4. Steuer & Register</h3>
-            <div className="formGrid">
-              <InputField id="steuernummer" label="Steuernummer" value={form.steuernummer} onChange={(e) => update('steuernummer', e.target.value)} />
-              <InputField id="ustid" label="USt-IdNr." value={form.ustid} onChange={(e) => update('ustid', e.target.value)} />
-              <SelectField id="handelsregisterVorhanden" label="Handelsregister vorhanden" value={form.handelsregisterVorhanden} onChange={(e) => update('handelsregisterVorhanden', e.target.value)} options={['Nein', 'Ja']} />
-              {form.handelsregisterVorhanden === 'Ja' && (
-                <>
-                  <InputField id="handelsregisternummer" label="Handelsregisternummer" value={form.handelsregisternummer} onChange={(e) => update('handelsregisternummer', e.target.value)} />
-                  <InputField id="registergericht" label="Registergericht" value={form.registergericht} onChange={(e) => update('registergericht', e.target.value)} />
-                </>
-              )}
-            </div>
-          </section>
-
-          <section className="sectionCard">
-            <h3>5. Unternehmensstruktur</h3>
-            <p className="subtle">Je nach Rechtsform werden die passenden Felder eingeblendet.</p>
-            <div className="formGrid">
-              {showInhaber && (
-                <>
-                  <InputField id="inhaber1" label="Inhaber 1" value={form.inhaber1} onChange={(e) => update('inhaber1', e.target.value)} required={showInhaber} />
-                  <InputField id="inhaber2" label="Inhaber 2" value={form.inhaber2} onChange={(e) => update('inhaber2', e.target.value)} />
-                </>
-              )}
-
-              {showGesellschafter && (
-                <>
-                  <InputField id="gesellschafter1" label="Gesellschafter 1" value={form.gesellschafter1} onChange={(e) => update('gesellschafter1', e.target.value)} required={showGesellschafter} />
-                  <InputField id="gesellschafter2" label="Gesellschafter 2" value={form.gesellschafter2} onChange={(e) => update('gesellschafter2', e.target.value)} />
-                </>
-              )}
-
-              {showGeschaeftsfuehrer && (
-                <>
-                  <InputField id="geschaeftsfuehrer1" label="Geschäftsführer 1" value={form.geschaeftsfuehrer1} onChange={(e) => update('geschaeftsfuehrer1', e.target.value)} required={showGeschaeftsfuehrer} />
-                  <InputField id="geschaeftsfuehrer2" label="Geschäftsführer 2" value={form.geschaeftsfuehrer2} onChange={(e) => update('geschaeftsfuehrer2', e.target.value)} />
-                </>
-              )}
-            </div>
-          </section>
-
-          <section className="sectionCard">
-            <h3>6. Gewünschte Leistungen</h3>
-            <div className="formGrid">
-              <SelectField id="fibuGewuenscht" label="Finanzbuchhaltung gewünscht" value={form.fibuGewuenscht} onChange={(e) => update('fibuGewuenscht', e.target.value)} options={['Ja', 'Nein']} />
-              {form.fibuGewuenscht === 'Ja' && (
-                <InputField id="fibuAb" label="Finanzbuchhaltung ab" type="date" value={form.fibuAb} onChange={(e) => update('fibuAb', e.target.value)} />
-              )}
-              <SelectField id="lohnGewuenscht" label="Lohnabrechnungen gewünscht" value={form.lohnGewuenscht} onChange={(e) => update('lohnGewuenscht', e.target.value)} options={['Ja', 'Nein']} />
-              {form.lohnGewuenscht === 'Ja' && (
-                <>
-                  <InputField id="lohnAb" label="Lohnabrechnungen ab" type="date" value={form.lohnAb} onChange={(e) => update('lohnAb', e.target.value)} />
-                  <InputField id="lohnMitarbeiterzahl" label="Anzahl Mitarbeiter für Lohn" value={form.lohnMitarbeiterzahl} onChange={(e) => update('lohnMitarbeiterzahl', e.target.value)} />
-                </>
-              )}
-              <SelectField id="jahresabschlussGewuenscht" label="Jahresabschluss gewünscht" value={form.jahresabschlussGewuenscht} onChange={(e) => update('jahresabschlussGewuenscht', e.target.value)} options={['Ja', 'Nein']} />
-              <SelectField id="steuererklaerungenGewuenscht" label="Steuererklärungen gewünscht" value={form.steuererklaerungenGewuenscht} onChange={(e) => update('steuererklaerungenGewuenscht', e.target.value)} options={['Ja', 'Nein']} />
-              <SelectField id="sonstigeBeratungGewuenscht" label="Sonstige Beratung gewünscht" value={form.sonstigeBeratungGewuenscht} onChange={(e) => update('sonstigeBeratungGewuenscht', e.target.value)} options={['Ja', 'Nein']} />
-              {form.sonstigeBeratungGewuenscht === 'Ja' && (
-                <div className="field spanTwo">
-                  <label htmlFor="sonstigeBeratungText">Welche sonstige Beratung wird gewünscht?</label>
-                  <textarea id="sonstigeBeratungText" value={form.sonstigeBeratungText} onChange={(e) => update('sonstigeBeratungText', e.target.value)} />
-                </div>
-              )}
-              <SelectField id="dringlichkeit" label="Dringlichkeit" value={form.dringlichkeit} onChange={(e) => update('dringlichkeit', e.target.value)} options={['sofort', 'innerhalb 1 Monat', 'geplant']} />
-            </div>
-          </section>
-
-          <section className="sectionCard">
-            <h3>7. Steuerliche Meldungen</h3>
-            <div className="formGrid">
-              <SelectField id="ustPflichtig" label="Umsatzsteuerpflichtig" value={form.ustPflichtig} onChange={(e) => update('ustPflichtig', e.target.value)} options={['Ja', 'Nein']} />
-              {form.ustPflichtig === 'Ja' && (
-                <>
-                  <SelectField id="ustTurnus" label="Umsatzsteuervoranmeldung Turnus" value={form.ustTurnus} onChange={(e) => update('ustTurnus', e.target.value)} options={['monatlich', 'quartalsweise', 'jährlich']} />
-                  <SelectField id="ustFinanzamtStatus" label="USt-Turnus beim Finanzamt hinterlegt" value={form.ustFinanzamtStatus} onChange={(e) => update('ustFinanzamtStatus', e.target.value)} options={['Ja', 'Nein', 'Unklar']} />
-                </>
-              )}
-
-              <SelectField id="lohnDurchUns" label="Führen wir die Lohnabrechnung aus?" value={form.lohnDurchUns} onChange={(e) => update('lohnDurchUns', e.target.value)} options={['Ja', 'Nein']} />
-              {form.lohnDurchUns === 'Ja' && (
-                <>
-                  <SelectField id="lohnsteuerTurnus" label="Lohnsteuer-Anmeldeturnus" value={form.lohnsteuerTurnus} onChange={(e) => update('lohnsteuerTurnus', e.target.value)} options={['monatlich', 'quartalsweise', 'jährlich']} required />
-                  <SelectField id="lohnFinanzamtStatus" label="Lohnsteuer-Turnus beim Finanzamt hinterlegt" value={form.lohnFinanzamtStatus} onChange={(e) => update('lohnFinanzamtStatus', e.target.value)} options={['Ja', 'Nein', 'Unklar']} />
-                </>
-              )}
-            </div>
-          </section>
-
-          <section className="sectionCard">
-            <h3>8. Zusätzliche Hinweise</h3>
-            <div className="field">
-              <label htmlFor="notizen">Notizen</label>
-              <textarea id="notizen" value={form.notizen} onChange={(e) => update('notizen', e.target.value)} placeholder="Besondere Hinweise, Rückfragen oder gewünschte Rückrufzeiten" />
-            </div>
-            <label className="checkboxRow">
-              <input
-                type="checkbox"
-                checked={form.datenschutzBestaetigt}
-                onChange={(e) => update('datenschutzBestaetigt', e.target.checked)}
+          <form onSubmit={handleSubmit} style={{ marginTop: '30px' }}>
+            <h3 style={sectionTitle}>Unternehmensdaten</h3>
+            <div style={grid}>
+              <InputField
+                label="Firmenname"
+                value={form.firmenname}
+                onChange={(e) => update('firmenname', e.target.value)}
                 required
               />
-              <span>Ich stimme der Verarbeitung meiner Daten zu. *</span>
-            </label>
-          </section>
+              <InputField
+                label="Rechtsform"
+                value={form.rechtsform}
+                onChange={(e) => update('rechtsform', e.target.value)}
+              />
+              <InputField
+                label="Straße / Hausnummer"
+                value={form.strasse}
+                onChange={(e) => update('strasse', e.target.value)}
+              />
+              <InputField
+                label="PLZ"
+                value={form.plz}
+                onChange={(e) => update('plz', e.target.value)}
+              />
+              <InputField
+                label="Ort"
+                value={form.ort}
+                onChange={(e) => update('ort', e.target.value)}
+              />
+              <InputField
+                label="Branche / Tätigkeit"
+                value={form.branche}
+                onChange={(e) => update('branche', e.target.value)}
+              />
+            </div>
 
-          <div className="actions">
-            <button type="submit" disabled={sending}>{sending ? 'Wird gesendet ...' : 'Daten übermitteln'}</button>
-          </div>
-        </form>
+            <h3 style={sectionTitle}>Ansprechpartner</h3>
+            <div style={grid}>
+              <InputField
+                label="Vorname"
+                value={form.ansprechpartnerVorname}
+                onChange={(e) => update('ansprechpartnerVorname', e.target.value)}
+                required
+              />
+              <InputField
+                label="Nachname"
+                value={form.ansprechpartnerNachname}
+                onChange={(e) => update('ansprechpartnerNachname', e.target.value)}
+                required
+              />
+              <InputField
+                label="E-Mail"
+                type="email"
+                value={form.email}
+                onChange={(e) => update('email', e.target.value)}
+                required
+              />
+              <InputField
+                label="Telefon"
+                value={form.telefon}
+                onChange={(e) => update('telefon', e.target.value)}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Gewünschte Bereiche</h3>
+            <div style={checkboxGrid}>
+              <CheckboxField
+                label="Finanzbuchhaltung"
+                checked={form.fibu}
+                onChange={(e) => update('fibu', e.target.checked)}
+              />
+              <CheckboxField
+                label="Lohnabrechnung"
+                checked={form.lohn}
+                onChange={(e) => update('lohn', e.target.checked)}
+              />
+              <CheckboxField
+                label="Unternehmensberatung"
+                checked={form.unternehmensberatung}
+                onChange={(e) => update('unternehmensberatung', e.target.checked)}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Mitarbeiter</h3>
+            <div style={grid}>
+              <InputField
+                label="Werden Mitarbeiter angemeldet?"
+                placeholder="ja / nein"
+                value={form.mitarbeiter}
+                onChange={(e) => update('mitarbeiter', e.target.value)}
+              />
+              <InputField
+                label="Anzahl Mitarbeiter"
+                value={form.anzahlMitarbeiter}
+                onChange={(e) => update('anzahlMitarbeiter', e.target.value)}
+              />
+              <InputField
+                label="Betriebsnummer"
+                value={form.betriebsnummer}
+                onChange={(e) => update('betriebsnummer', e.target.value)}
+                hint="Pflicht nur, wenn Mitarbeiter angemeldet werden."
+              />
+              <InputField
+                label="Gewünschter Start"
+                value={form.startGewuenscht}
+                onChange={(e) => update('startGewuenscht', e.target.value)}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Bestehende Situation</h3>
+            <div style={grid}>
+              <InputField
+                label="Bisheriger Steuerberater"
+                value={form.steuerberaterBisher}
+                onChange={(e) => update('steuerberaterBisher', e.target.value)}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Hinweise</h3>
+            <textarea
+              placeholder="Zusätzliche Informationen oder Besonderheiten"
+              value={form.hinweise}
+              onChange={(e) => update('hinweise', e.target.value)}
+              style={textarea}
+            />
+
+            <h3 style={sectionTitle}>Unterlagen</h3>
+            <div style={uploadGrid}>
+              <UploadField
+                label="Gewerbeanmeldung"
+                onChange={(e) => setGewerbeanmeldung(e.target.files?.[0] || null)}
+              />
+              <UploadField
+                label="Handelsregisterauszug"
+                onChange={(e) => setHandelsregisterauszug(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <div style={{ marginTop: '14px' }}>
+              <UploadField
+                label="Weitere Unterlagen"
+                multiple
+                onChange={(e) => setWeitereUnterlagen(e.target.files || [])}
+              />
+            </div>
+
+            <h3 style={sectionTitle}>Datenschutz & Vollmacht</h3>
+
+            <div style={checkboxBox}>
+              <label style={checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.dsgvoAkzeptiert}
+                  onChange={(e) => update('dsgvoAkzeptiert', e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                Ich habe die{' '}
+                <a href="/datenschutz" target="_blank" rel="noreferrer" style={linkStyle}>
+                  Datenschutzerklärung
+                </a>{' '}
+                gelesen und akzeptiere diese.
+              </label>
+            </div>
+
+            <div style={{ ...checkboxBox, marginTop: '10px' }}>
+              <label style={checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={form.vollmachtAkzeptiert}
+                  onChange={(e) => update('vollmachtAkzeptiert', e.target.checked)}
+                  style={{ marginRight: '8px' }}
+                />
+                Ich habe die{' '}
+                <a href="/vollmacht" target="_blank" rel="noreferrer" style={linkStyle}>
+                  Vollmacht
+                </a>{' '}
+                gelesen und bestätige diese.
+              </label>
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <label style={labelStyle}>Unterschrift *</label>
+              <div
+                ref={wrapperRef}
+                style={{
+                  marginTop: '8px',
+                  border: '1px solid #d0d5dd',
+                  borderRadius: '12px',
+                  background: '#fff',
+                  overflow: 'hidden'
+                }}
+              >
+                <canvas
+                  ref={canvasRef}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    height: '180px',
+                    touchAction: 'none',
+                    cursor: 'crosshair'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginTop: '10px' }}>
+                <button type="button" onClick={clearSignature} style={secondarySmallButton}>
+                  Unterschrift löschen
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" style={button} disabled={sending}>
+              {sending ? 'Wird gesendet...' : 'Anfrage absenden'}
+            </button>
+          </form>
+        </section>
       </div>
     </main>
   );
 }
+
+function InputField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder = '',
+  required = false,
+  hint = ''
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={labelStyle}>
+        {label}
+        {required ? ' *' : ''}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        style={input}
+      />
+      {hint ? <span style={hintStyle}>{hint}</span> : null}
+    </div>
+  );
+}
+
+function CheckboxField({ label, checked, onChange }) {
+  return (
+    <label style={checkboxCard}>
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function UploadField({ label, onChange, multiple = false }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={labelStyle}>{label}</label>
+      <input type="file" onChange={onChange} multiple={multiple} style={fileInput} />
+    </div>
+  );
+}
+
+const card = {
+  background: '#ffffff',
+  border: '1px solid #e7e2d8',
+  borderRadius: '24px',
+  padding: '40px',
+  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.06)'
+};
+
+const badge = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  borderRadius: '999px',
+  border: '1px solid #d8d2c6',
+  background: '#faf8f3',
+  color: '#5f5a4f',
+  fontSize: '14px',
+  fontWeight: '600',
+  marginBottom: '20px'
+};
+
+const title = {
+  fontSize: '36px',
+  fontWeight: '700',
+  marginBottom: '10px',
+  color: '#101828'
+};
+
+const subtitle = {
+  color: '#475467',
+  marginBottom: '20px',
+  fontSize: '16px',
+  lineHeight: 1.6,
+  maxWidth: '900px'
+};
+
+const sectionTitle = {
+  marginTop: '30px',
+  marginBottom: '12px',
+  fontWeight: '600',
+  color: '#101828'
+};
+
+const labelStyle = {
+  fontSize: '14px',
+  fontWeight: '600',
+  color: '#344054'
+};
+
+const hintStyle = {
+  fontSize: '12px',
+  color: '#667085'
+};
+
+const grid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '14px'
+};
+
+const uploadGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '14px'
+};
+
+const checkboxGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr 1fr',
+  gap: '12px'
+};
+
+const checkboxCard = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #e4e7ec',
+  background: '#fcfcfd',
+  color: '#344054',
+  fontSize: '14px'
+};
+
+const input = {
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px'
+};
+
+const fileInput = {
+  padding: '10px',
+  borderRadius: '10px',
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  fontSize: '14px'
+};
+
+const textarea = {
+  width: '100%',
+  minHeight: '110px',
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px',
+  resize: 'vertical'
+};
+
+const checkboxBox = {
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#fcfcfd',
+  border: '1px solid #eaecf0'
+};
+
+const checkboxLabel = {
+  fontSize: '14px',
+  color: '#344054',
+  lineHeight: 1.6
+};
+
+const linkStyle = {
+  color: '#8c6b43',
+  textDecoration: 'underline'
+};
+
+const button = {
+  marginTop: '24px',
+  padding: '16px',
+  borderRadius: '12px',
+  background: '#8c6b43',
+  color: '#fff',
+  border: 'none',
+  fontWeight: '600',
+  width: '100%',
+  cursor: 'pointer'
+};
+
+const secondarySmallButton = {
+  padding: '10px 14px',
+  borderRadius: '10px',
+  background: '#ffffff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  fontWeight: '600',
+  cursor: 'pointer'
+};
+
+const errorBox = {
+  marginTop: '16px',
+  marginBottom: '8px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318'
+};
+
+const successBox = {
+  marginTop: '16px',
+  marginBottom: '8px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#ecfdf3',
+  border: '1px solid #abefc6',
+  color: '#067647'
+};
