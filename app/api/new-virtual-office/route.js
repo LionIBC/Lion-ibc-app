@@ -1,83 +1,64 @@
-import { NextResponse } from 'next/server'; import { Resend } from 'resend';
+import { sendNotification } from '../../../lib/email'; import { generatePostEmpfangVollmachtPDF } from '../../../lib/vollmacht-post-empfang';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const formData = await req.formData();
+    const formData = await request.formData();
 
     const data = {};
-    for (let [key, value] of formData.entries()) {
-      if (key !== 'weitereUnterlagen') {
+    const attachments = [];
+
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        if (value.size > 0) {
+          const buffer = Buffer.from(await value.arrayBuffer());
+
+          attachments.push({
+            filename: value.name,
+            content: buffer.toString('base64')
+          });
+        }
+      } else {
         data[key] = value;
       }
     }
 
-    const files = formData.getAll('weitereUnterlagen');
+    if (data.unterschrift && data.unterschrift.startsWith('data:image/png;base64,')) {
+      const base64Signature = data.unterschrift.replace('data:image/png;base64,', '');
 
-    const unterschrift = data.unterschrift;
+      data.unterschriftBase64 = base64Signature;
+      data.unterschrift = base64Signature;
 
-    // 👉 Text für Mail
-    const text = `
-Neue Anfrage - Geschäftsadresse / Virtual Office
-
-Firma: ${data.firmenname}
-Ansprechpartner: ${data.ansprechpartnerVorname} ${data.ansprechpartnerNachname}
-E-Mail: ${data.email}
-Telefon: ${data.telefon}
-
-Leistungen:
-- Geschäftsadresse: ${data.leistungGeschaeftsadresse}
-- Virtual Office: ${data.leistungVirtualOffice}
-
-Start: ${data.gewuenschterStart}
-
-Postweiterleitung: ${data.postWeiterleitung}
-Scan-Service: ${data.scanService}
-Telefonservice: ${data.telefonservice}
-
-Nutzung: ${data.nutzungGeschaeftsadresse} Weitere Standorte: ${data.weitereStandorte} Postempfang für: ${data.postEmpfangFuer}
-
-Hinweise:
-${data.hinweise}
-    `;
-
-    const attachments = [];
-
-    // 👉 Unterschrift als Datei anhängen
-    if (unterschrift) {
-      const base64Data = unterschrift.split(',')[1];
       attachments.push({
-        filename: 'unterschrift.png',
-        content: base64Data,
-        encoding: 'base64'
+        filename: 'unterschrift-post-empfang.png',
+        content: base64Signature
+      });
+
+      const vollmachtPdf = await generatePostEmpfangVollmachtPDF(data);
+
+      attachments.push({
+        filename: `Vollmacht_Post_Empfang_${data.firmenname || 'Unternehmen'}.pdf`,
+        content: vollmachtPdf.toString('base64')
       });
     }
 
-    // 👉 Hochgeladene Dateien anhängen
-    for (let file of files) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      attachments.push({
-        filename: file.name,
-        content: buffer
-      });
-    }
-
-    await resend.emails.send({
-      from: 'onboarding@resend.dev',
-      to: 'info@lion-ibc.com',
+    const mail = await sendNotification({
       subject: 'Neue Anfrage Geschäftsadresse / Virtual Office',
-      text,
+      title: 'Neue Anfrage Geschäftsadresse / Virtual Office',
+      data,
       attachments
     });
 
-    return NextResponse.json({ message: 'Erfolgreich gesendet' });
+    return Response.json({
+      message: mail.skipped
+        ? 'Die Daten wurden übermittelt. Der E-Mail-Versand ist noch nicht vollständig eingerichtet.'
+        : 'Die Daten wurden erfolgreich übermittelt.'
+    });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { message: 'Fehler beim Senden' },
+    console.error('NEW VIRTUAL OFFICE ERROR:', error);
+
+    return Response.json(
+      { message: 'Fehler beim Senden.' },
       { status: 500 }
     );
   }
 }
-
