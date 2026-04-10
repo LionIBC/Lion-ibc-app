@@ -82,24 +82,25 @@ body {
 .btn-primary {
   padding: 16px 32px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #8c6b43 0%, #a07a4f 100%);
+  background: linear-gradient(135deg, #101828 0%, #1f2937 100%);
   color: #ffffff;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 6px 20px rgba(140, 107, 67, 0.35);
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.35);
   transition: all 0.25s ease;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(140, 107, 67, 0.45);
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.45);
 }
+
 
 .btn-secondary {
   padding: 16px 32px;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #d6d0c4;
+  border: 1px solid #d0d5dd;
   color: #101828;
   font-weight: 700;
   text-decoration: none;
@@ -109,7 +110,7 @@ body {
 
 .btn-secondary:hover {
   transform: translateY(-2px);
-  border-color: #8c6b43;
+  border-color: #101828;
 }
 
 /* FEATURES */
