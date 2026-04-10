@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function GruendungPage() {
   const initialState = {
@@ -141,6 +141,49 @@ export default function GruendungPage() {
     hasSignatureRef.current = false;
   }
 
+  const requiredChecks = useMemo(() => {
+    const base = {
+      vorname: form.vorname.trim().length > 1,
+      nachname: form.nachname.trim().length > 1,
+      telefon: form.telefon.trim().length > 3,
+      email: /\S+@\S+\.\S+/.test(form.email),
+      rechtsform: form.rechtsform.trim().length > 0,
+      firmenname: form.firmenname.trim().length > 1,
+      unternehmenssitz: form.unternehmenssitz.trim().length > 1,
+      taetigkeit: form.taetigkeit.trim().length > 5,
+      stammkapital: form.stammkapital.trim().length > 0,
+      dsgvoAkzeptiert: form.dsgvoAkzeptiert,
+      vollmachtAkzeptiert: form.vollmachtAkzeptiert,
+      unterschrift: hasSignatureRef.current
+    };
+
+    if (form.rechtsform !== 'Einzelunternehmen') {
+      base.alternativeFirmennamen = form.alternativeFirmennamen.trim().length > 1;
+      base.alternativeFirmennamen2 = form.alternativeFirmennamen2.trim().length > 1;
+    }
+
+    return base;
+  }, [form, hasSignatureRef.current]);
+
+  const progress = useMemo(() => {
+    const values = Object.values(requiredChecks);
+    const done = values.filter(Boolean).length;
+    return Math.round((done / values.length) * 100);
+  }, [requiredChecks]);
+
+  const canSubmit = useMemo(() => {
+    return Object.values(requiredChecks).every(Boolean);
+  }, [requiredChecks]);
+
+  function getInputStyle(isValid, isEmpty = false) {
+    if (isEmpty) return input;
+    return {
+      ...input,
+      border: `1px solid ${isValid ? '#12b76a' : '#f04438'}`,
+      background: isValid ? '#f6fef9' : '#fffbfa'
+    };
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSending(true);
@@ -263,6 +306,13 @@ export default function GruendungPage() {
             Erfassung und weiterer Behörden.
           </p>
 
+          <div style={progressWrapper}>
+            <div style={progressBarBg}>
+              <div style={{ ...progressBarFill, width: `${progress}%` }} />
+            </div>
+            <div style={progressText}>{progress}% vollständig</div>
+          </div>
+
           {status && status.type === 'error' && (
             <div style={errorBox}>{status.message}</div>
           )}
@@ -279,18 +329,21 @@ export default function GruendungPage() {
                 value={form.vorname}
                 onChange={(e) => update('vorname', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.vorname, form.vorname === '')}
               />
               <InputField
                 label="Nachname"
                 value={form.nachname}
                 onChange={(e) => update('nachname', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.nachname, form.nachname === '')}
               />
               <InputField
                 label="Telefon"
                 value={form.telefon}
                 onChange={(e) => update('telefon', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.telefon, form.telefon === '')}
               />
               <InputField
                 label="E-Mail"
@@ -298,6 +351,7 @@ export default function GruendungPage() {
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.email, form.email === '')}
               />
             </div>
 
@@ -310,7 +364,7 @@ export default function GruendungPage() {
                   value={form.rechtsform}
                   onChange={(e) => update('rechtsform', e.target.value)}
                   required
-                  style={input}
+                  style={getInputStyle(requiredChecks.rechtsform, form.rechtsform === '')}
                 >
                   <option value="">Bitte wählen</option>
                   <option value="Einzelunternehmen">Einzelunternehmen</option>
@@ -328,6 +382,7 @@ export default function GruendungPage() {
                 value={form.firmenname}
                 onChange={(e) => update('firmenname', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.firmenname, form.firmenname === '')}
               />
             </div>
 
@@ -338,6 +393,10 @@ export default function GruendungPage() {
                   value={form.alternativeFirmennamen}
                   onChange={(e) => update('alternativeFirmennamen', e.target.value)}
                   required
+                  style={getInputStyle(
+                    requiredChecks.alternativeFirmennamen,
+                    form.alternativeFirmennamen === ''
+                  )}
                 />
 
                 <InputField
@@ -345,6 +404,10 @@ export default function GruendungPage() {
                   value={form.alternativeFirmennamen2}
                   onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
                   required
+                  style={getInputStyle(
+                    requiredChecks.alternativeFirmennamen2,
+                    form.alternativeFirmennamen2 === ''
+                  )}
                 />
               </div>
             )}
@@ -357,6 +420,7 @@ export default function GruendungPage() {
                   value={form.unternehmenssitz}
                   onChange={(e) => update('unternehmenssitz', e.target.value)}
                   required
+                  style={getInputStyle(requiredChecks.unternehmenssitz, form.unternehmenssitz === '')}
                 />
 
                 <InputField
@@ -375,7 +439,15 @@ export default function GruendungPage() {
                 value={form.taetigkeit}
                 onChange={(e) => update('taetigkeit', e.target.value)}
                 required
-                style={textarea}
+                style={{
+                  ...textarea,
+                  ...(form.taetigkeit === ''
+                    ? {}
+                    : {
+                        border: `1px solid ${requiredChecks.taetigkeit ? '#12b76a' : '#f04438'}`,
+                        background: requiredChecks.taetigkeit ? '#f6fef9' : '#fffbfa'
+                      })
+                }}
               />
             </div>
 
@@ -487,6 +559,7 @@ export default function GruendungPage() {
                 value={form.stammkapital}
                 onChange={(e) => update('stammkapital', e.target.value)}
                 required
+                style={getInputStyle(requiredChecks.stammkapital, form.stammkapital === '')}
               />
             </div>
 
@@ -615,7 +688,9 @@ export default function GruendungPage() {
                     width: '100%',
                     height: '180px',
                     touchAction: 'none',
-                    cursor: 'crosshair'
+                    cursor: 'crosshair',
+                    border:
+                      hasSignatureRef.current ? '1px solid #12b76a' : '1px solid transparent'
                   }}
                 />
               </div>
@@ -631,7 +706,7 @@ export default function GruendungPage() {
               </div>
             </div>
 
-            <button type="submit" style={button} disabled={sending}>
+            <button type="submit" style={{ ...button, opacity: canSubmit ? 1 : 0.65 }} disabled={sending || !canSubmit}>
               {sending ? 'Wird gesendet...' : 'Gründung absenden'}
             </button>
           </form>
@@ -647,7 +722,8 @@ function InputField({
   onChange,
   type = 'text',
   placeholder = '',
-  required = false
+  required = false,
+  style
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -661,7 +737,7 @@ function InputField({
         onChange={onChange}
         placeholder={placeholder}
         required={required}
-        style={input}
+        style={style || input}
       />
     </div>
   );
@@ -709,6 +785,33 @@ const subtitle = {
   fontSize: '16px',
   lineHeight: 1.6,
   maxWidth: '900px'
+};
+
+const progressWrapper = {
+  marginTop: '10px',
+  marginBottom: '22px'
+};
+
+const progressBarBg = {
+  width: '100%',
+  height: '10px',
+  background: '#ece8e0',
+  borderRadius: '999px',
+  overflow: 'hidden'
+};
+
+const progressBarFill = {
+  height: '100%',
+  background: 'linear-gradient(90deg, #8c6b43 0%, #b08a5a 100%)',
+  borderRadius: '999px',
+  transition: 'width 0.3s ease'
+};
+
+const progressText = {
+  marginTop: '8px',
+  fontSize: '13px',
+  color: '#667085',
+  fontWeight: '600'
 };
 
 const sectionTitle = {
