@@ -11,15 +11,11 @@ export default function GruendungPage() {
 
     firmenname: '',
     alternativeFirmennamen: '',
+    alternativeFirmennamen2: '',
     rechtsform: '',
     unternehmenssitz: '',
     geschaeftsadresseVorhanden: '',
     taetigkeit: '',
-
-    gesellschafter1: '',
-    beteiligung1: '',
-    geschaeftsfuehrerJaNein: '',
-    weitereGesellschafter: '',
 
     stammkapital: '',
 
@@ -41,8 +37,9 @@ export default function GruendungPage() {
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null);
 
-  const [ausweisVorne, setAusweisVorne] = useState(null);
-  const [ausweisHinten, setAusweisHinten] = useState(null);
+  const [gesellschafterCount, setGesellschafterCount] = useState(1);
+  const [geschaeftsfuehrerCount, setGeschaeftsfuehrerCount] = useState(1);
+
   const [weitereUnterlagen, setWeitereUnterlagen] = useState([]);
 
   const canvasRef = useRef(null);
@@ -176,6 +173,17 @@ export default function GruendungPage() {
       return;
     }
 
+    if (form.rechtsform !== 'Einzelunternehmen') {
+      if (!form.alternativeFirmennamen?.trim() || !form.alternativeFirmennamen2?.trim()) {
+        setStatus({
+          type: 'error',
+          message: 'Bitte geben Sie zwei alternative Firmennamen an.'
+        });
+        setSending(false);
+        return;
+      }
+    }
+
     try {
       const formData = new FormData();
 
@@ -183,16 +191,11 @@ export default function GruendungPage() {
         formData.append(key, typeof value === 'boolean' ? String(value) : value);
       });
 
+      formData.append('gesellschafterCount', String(gesellschafterCount));
+      formData.append('geschaeftsfuehrerCount', String(geschaeftsfuehrerCount));
+
       const signatureDataUrl = canvasRef.current.toDataURL('image/png');
       formData.append('unterschrift', signatureDataUrl);
-
-      if (ausweisVorne) {
-        formData.append('ausweisVorne', ausweisVorne);
-      }
-
-      if (ausweisHinten) {
-        formData.append('ausweisHinten', ausweisHinten);
-      }
 
       Array.from(weitereUnterlagen).forEach((file) => {
         formData.append('weitereUnterlagen', file);
@@ -211,8 +214,8 @@ export default function GruendungPage() {
           message: data.message || 'Die Gründungsdaten wurden erfolgreich übermittelt.'
         });
         setForm(initialState);
-        setAusweisVorne(null);
-        setAusweisHinten(null);
+        setGesellschafterCount(1);
+        setGeschaeftsfuehrerCount(1);
         setWeitereUnterlagen([]);
         clearSignature();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -306,18 +309,41 @@ export default function GruendungPage() {
                 onChange={(e) => update('firmenname', e.target.value)}
                 required
               />
-              <InputField
-                label="Alternative Firmennamen"
-                value={form.alternativeFirmennamen}
-                onChange={(e) => update('alternativeFirmennamen', e.target.value)}
-              />
-              <InputField
-                label="Rechtsform"
-                placeholder="z. B. GmbH"
-                value={form.rechtsform}
-                onChange={(e) => update('rechtsform', e.target.value)}
-                required
-              />
+
+              {form.rechtsform !== 'Einzelunternehmen' ? (
+                <InputField
+                  label="Alternativer Firmenname 1"
+                  value={form.alternativeFirmennamen}
+                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+                  required
+                />
+              ) : (
+                <InputField
+                  label="Alternativer Firmenname 1"
+                  value={form.alternativeFirmennamen}
+                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+                />
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={labelStyle}>Rechtsform *</label>
+                <select
+                  value={form.rechtsform}
+                  onChange={(e) => update('rechtsform', e.target.value)}
+                  required
+                  style={input}
+                >
+                  <option value="">Bitte wählen</option>
+                  <option value="Einzelunternehmen">Einzelunternehmen</option>
+                  <option value="GmbH">GmbH</option>
+                  <option value="UG">UG (haftungsbeschränkt)</option>
+                  <option value="AG">AG</option>
+                  <option value="GbR">GbR</option>
+                  <option value="OHG">OHG</option>
+                  <option value="KG">KG</option>
+                </select>
+              </div>
+
               <InputField
                 label="Unternehmenssitz"
                 placeholder="Ort"
@@ -325,12 +351,14 @@ export default function GruendungPage() {
                 onChange={(e) => update('unternehmenssitz', e.target.value)}
                 required
               />
+
               <InputField
                 label="Geschäftsadresse vorhanden?"
                 placeholder="ja / nein"
                 value={form.geschaeftsadresseVorhanden}
                 onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
               />
+
               <InputField
                 label="Tätigkeit / Branche"
                 value={form.taetigkeit}
@@ -339,34 +367,116 @@ export default function GruendungPage() {
               />
             </div>
 
-            <h3 style={sectionTitle}>Gesellschafter / Geschäftsführer</h3>
-            <div style={grid}>
-              <InputField
-                label="Name Gesellschafter 1"
-                value={form.gesellschafter1}
-                onChange={(e) => update('gesellschafter1', e.target.value)}
-                required
-              />
-              <InputField
-                label="Beteiligung in %"
-                value={form.beteiligung1}
-                onChange={(e) => update('beteiligung1', e.target.value)}
-                required
-              />
-              <InputField
-                label="Geschäftsführer"
-                placeholder="ja / nein"
-                value={form.geschaeftsfuehrerJaNein}
-                onChange={(e) => update('geschaeftsfuehrerJaNein', e.target.value)}
-                required
-              />
-              <InputField
-                label="Weitere Gesellschafter vorhanden?"
-                placeholder="ja / nein"
-                value={form.weitereGesellschafter}
-                onChange={(e) => update('weitereGesellschafter', e.target.value)}
-              />
-            </div>
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <div style={{ marginTop: '14px' }}>
+                <InputField
+                  label="Alternativer Firmenname 2"
+                  value={form.alternativeFirmennamen2}
+                  onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <>
+                <h3 style={sectionTitle}>Gesellschafter</h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '280px' }}>
+                  <label style={labelStyle}>Anzahl Gesellschafter *</label>
+                  <select
+                    value={gesellschafterCount}
+                    onChange={(e) => setGesellschafterCount(Number(e.target.value))}
+                    style={input}
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {Array.from({ length: gesellschafterCount }).map((_, i) => (
+                  <div key={i} style={{ marginTop: '20px' }}>
+                    <h4 style={{ marginBottom: '12px', color: '#101828' }}>
+                      Gesellschafter {i + 1}
+                    </h4>
+
+                    <div style={grid}>
+                      <InputField
+                        label="Name"
+                        value={form[`gesellschafter_${i}_name`] || ''}
+                        onChange={(e) => update(`gesellschafter_${i}_name`, e.target.value)}
+                        required
+                      />
+                      <InputField
+                        label="Adresse"
+                        value={form[`gesellschafter_${i}_adresse`] || ''}
+                        onChange={(e) => update(`gesellschafter_${i}_adresse`, e.target.value)}
+                        required
+                      />
+                      <InputField
+                        label="Steuer-ID"
+                        value={form[`gesellschafter_${i}_steuerId`] || ''}
+                        onChange={(e) => update(`gesellschafter_${i}_steuerId`, e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <>
+                <h3 style={sectionTitle}>Geschäftsführer</h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '280px' }}>
+                  <label style={labelStyle}>Anzahl Geschäftsführer *</label>
+                  <select
+                    value={geschaeftsfuehrerCount}
+                    onChange={(e) => setGeschaeftsfuehrerCount(Number(e.target.value))}
+                    style={input}
+                  >
+                    {[1, 2, 3].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {Array.from({ length: geschaeftsfuehrerCount }).map((_, i) => (
+                  <div key={i} style={{ marginTop: '20px' }}>
+                    <h4 style={{ marginBottom: '12px', color: '#101828' }}>
+                      Geschäftsführer {i + 1}
+                    </h4>
+
+                    <div style={grid}>
+                      <InputField
+                        label="Name"
+                        value={form[`geschaeftsfuehrer_${i}_name`] || ''}
+                        onChange={(e) => update(`geschaeftsfuehrer_${i}_name`, e.target.value)}
+                        required
+                      />
+                      <InputField
+                        label="Adresse"
+                        value={form[`geschaeftsfuehrer_${i}_adresse`] || ''}
+                        onChange={(e) => update(`geschaeftsfuehrer_${i}_adresse`, e.target.value)}
+                        required
+                      />
+                      <InputField
+                        label="Steuer-ID"
+                        value={form[`geschaeftsfuehrer_${i}_steuerId`] || ''}
+                        onChange={(e) => update(`geschaeftsfuehrer_${i}_steuerId`, e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
 
             <h3 style={sectionTitle}>Stammkapital</h3>
             <div style={grid}>
@@ -430,24 +540,19 @@ export default function GruendungPage() {
             />
 
             <h3 style={sectionTitle}>Unterlagen</h3>
-            <div style={uploadGrid}>
-              <UploadField
-                label="Ausweis Vorderseite"
-                onChange={(e) => setAusweisVorne(e.target.files?.[0] || null)}
-              />
-              <UploadField
-                label="Ausweis Rückseite"
-                onChange={(e) => setAusweisHinten(e.target.files?.[0] || null)}
-              />
-            </div>
 
-            <div style={{ marginTop: '14px' }}>
-              <UploadField
-                label="Weitere Unterlagen"
-                multiple
-                onChange={(e) => setWeitereUnterlagen(e.target.files || [])}
-              />
-            </div>
+            <p style={{ marginBottom: '10px', color: '#667085', lineHeight: 1.7 }}>
+              Bitte laden Sie folgende Dokumente hoch:
+              <br />- Ausweisdokument
+              <br />- Bei ausländischen Staatsbürgern: Reisepass + Meldebescheinigung
+              <br />- Weitere Unterlagen nach Bedarf
+            </p>
+
+            <UploadField
+              label="Dokumente hochladen"
+              multiple
+              onChange={(e) => setWeitereUnterlagen(e.target.files || [])}
+            />
 
             <h3 style={sectionTitle}>Datenschutz & Vollmacht</h3>
 
@@ -624,17 +729,12 @@ const grid = {
   gap: '14px'
 };
 
-const uploadGrid = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '14px'
-};
-
 const input = {
   padding: '12px',
   borderRadius: '10px',
   border: '1px solid #d0d5dd',
-  fontSize: '14px'
+  fontSize: '14px',
+  width: '100%'
 };
 
 const fileInput = {
