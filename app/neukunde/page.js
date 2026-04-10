@@ -2,180 +2,90 @@ import Link from 'next/link';
 
 export default function NeukundePage() {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
-        padding: '32px 20px 60px'
-      }}
-    >
-      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-        
-        {/* Logo */}
-        <div style={{ marginBottom: '20px' }}>
-          <img
-            src="/logo.png"
-            alt="Lion IBC Logo"
-            style={{ height: '120px' }}
-          />
+    <main className="page-bg">
+      <div className="container">
+
+        {/* HEADER */}
+        <div className="header">
+          <img src="/logo.png" className="logo" />
+
+          <div>
+            <div className="brand-title">
+              Neukundenaufnahme
+            </div>
+
+            <div className="brand-sub">
+              Wählen Sie den passenden Bereich
+            </div>
+          </div>
         </div>
 
-        <section
-          style={{
-            background: '#ffffff',
-            border: '1px solid #e7e2d8',
-            borderRadius: '24px',
-            padding: '40px',
-            boxShadow: '0 10px 30px rgba(16, 24, 40, 0.06)'
-          }}
-        >
-          <div
-            style={{
-              display: 'inline-block',
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid #d8d2c6',
-              background: '#faf8f3',
-              color: '#5f5a4f',
-              fontSize: '14px',
-              fontWeight: '600',
-              marginBottom: '20px'
-            }}
-          >
-            Neukundenaufnahme
-          </div>
-
-          <h1
-            style={{
-              fontSize: '42px',
-              lineHeight: 1.2,
-              fontWeight: '700',
-              letterSpacing: '-0.5px',
-              marginBottom: '20px'
-            }}
-          >
-            Starten Sie Ihre digitale Zusammenarbeit mit Lion IBC
+        {/* HERO TEXT */}
+        <section className="card">
+          <h1 className="hero-title">
+            Starten Sie Ihre Zusammenarbeit
           </h1>
 
-          <p
-            style={{
-              fontSize: '18px',
-              color: '#475467',
-              maxWidth: '700px',
-              marginBottom: '30px'
-            }}
-          >
-            Wählen Sie den passenden Bereich. Anschließend führen wir Sie
-            strukturiert durch die digitale Aufnahme und alle erforderlichen Angaben.
+          <p className="hero-text">
+            Wählen Sie den passenden Bereich für Ihr Anliegen. 
+            Anschließend führen wir Sie Schritt für Schritt durch die digitale Aufnahme.
           </p>
-
-          {/* Auswahl */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '20px',
-              flexWrap: 'wrap',
-              alignItems: 'stretch'
-            }}
-          >
-            {/* Gründung */}
-            <div
-              style={{
-                flex: '1',
-                minWidth: '260px',
-                background: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '16px',
-                padding: '24px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-                height: '100%'
-              }}
-            >
-              <h3 style={{ marginBottom: '10px' }}>
-                Unternehmensgründung
-              </h3>
-
-              <p
-                style={{
-                  fontSize: '14px',
-                  color: '#667085',
-                  marginBottom: '20px'
-                }}
-              >
-                Sie gründen ein Unternehmen? Wir begleiten Sie strukturiert durch alle
-                Schritte – von der Anmeldung bis zur vollständigen Einrichtung.
-              </p>
-
-              <Link href="/neukunde/gruendung" style={primaryButton}>
-                Gründung starten
-              </Link>
-            </div>
-
-            {/* Bestehendes Unternehmen */}
-            <div
-              style={{
-                flex: '1',
-                minWidth: '260px',
-                background: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '16px',
-                padding: '24px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-                height: '100%'
-              }}
-            >
-              <h3 style={{ marginBottom: '10px' }}>
-                Bestehendes Unternehmen
-              </h3>
-
-              <p
-                style={{
-                  fontSize: '14px',
-                  color: '#667085',
-                  marginBottom: '20px'
-                }}
-              >
-                Sie benötigen Unterstützung in der Buchhaltung, Lohnabrechnung
-                oder Unternehmensberatung? Starten Sie hier die digitale Aufnahme.
-              </p>
-
-              <Link href="/neukunde/beratung" style={secondaryButton}>
-                Bereich auswählen
-              </Link>
-            </div>
-          </div>
         </section>
+
+        {/* AUSWAHL */}
+        <section className="features">
+
+          <Card
+            title="Unternehmensgründung"
+            text="Sie möchten ein Unternehmen gründen? Starten Sie hier den vollständigen digitalen Gründungsprozess."
+            link="/neukunde/gruendung"
+            button="Gründung starten"
+          />
+
+          <Card
+            title="Beratung & laufende Betreuung"
+            text="Für bestehende Unternehmen: Buchhaltung, Lohnabrechnung und individuelle Beratung."
+            link="/neukunde/beratung"
+            button="Bereich auswählen"
+          />
+
+          <Card
+            title="Geschäftsadresse & Virtual Office"
+            text="Nutzen Sie unsere Geschäftsadresse inklusive Postempfang und Weiterleitung."
+            link="/neukunde/geschaeftsadresse"
+            button="Jetzt starten"
+          />
+
+        </section>
+
       </div>
     </main>
   );
 }
 
-const primaryButton = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '16px 24px',
-  borderRadius: '14px',
-  background: '#8c6b43',
-  color: '#ffffff',
-  textDecoration: 'none',
-  fontWeight: '600',
-  fontSize: '16px',
-  border: '1px solid #8c6b43',
-  minWidth: '220px'
-};
+function Card({ title, text, link, button }) {
+  return (
+    <div className="feature-card" style={{ padding: '30px' }}>
+      
+      <h2 style={{
+        fontSize: '22px',
+        marginBottom: '12px'
+      }}>
+        {title}
+      </h2>
 
-const secondaryButton = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '16px 24px',
-  borderRadius: '14px',
-  background: '#f9fafb',
-  color: '#101828',
-  textDecoration: 'none',
-  fontWeight: '600',
-  fontSize: '16px',
-  border: '1px solid #d0d5dd',
-  minWidth: '220px'
-};
+      <p style={{
+        color: '#667085',
+        marginBottom: '25px',
+        lineHeight: 1.6
+      }}>
+        {text}
+      </p>
+
+      <Link href={link} className="btn-primary">
+        {button}
+      </Link>
+
+    </div>
+  );
+}
