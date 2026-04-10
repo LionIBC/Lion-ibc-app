@@ -2,202 +2,566 @@
 
 import { useState } from 'react';
 
+const currentData = {
+  kundennummer: 'K-10023',
+  firmenname: 'Muster GmbH',
+  rechtsform: 'GmbH',
+  gruendungsdatum: '2024-01-15',
+  unternehmenssitz: 'Köln',
+  hrbNummer: 'HRB 123456',
+  amtsgericht: 'Amtsgericht Köln',
+
+  steuernummern: ['123/456/78901'],
+  ustId: 'DE123456789',
+  wirtschaftsId: 'DE123456789-00001',
+  ustMeldung: 'monatlich',
+  lohnsteuerMeldung: 'monatlich',
+  dauerfristverlaengerung: 'Ja',
+
+  gesellschafter: ['Max Mustermann', 'Mia Beispiel'],
+  geschaeftsfuehrer: ['Max Mustermann'],
+  inhaber: '',
+
+  ansprechpartner: [
+    { name: 'Max Mustermann', email: 'max@muster.de', telefon: '+49 221 123456' }
+  ]
+};
+
+const emptyChangeState = {
+  firmenname: '',
+  rechtsform: '',
+  gruendungsdatum: '',
+  unternehmenssitz: '',
+  hrbNummer: '',
+  amtsgericht: '',
+  steuernummern: '',
+  ustId: '',
+  wirtschaftsId: '',
+  ustMeldung: '',
+  lohnsteuerMeldung: '',
+  dauerfristverlaengerung: '',
+  gesellschafter: '',
+  geschaeftsfuehrer: '',
+  inhaber: '',
+  ansprechpartner: '',
+  begruendung: ''
+};
+
 export default function StammdatenPage() {
-  const [form, setForm] = useState({
-    firmenname: '',
-    rechtsform: '',
-    gruendungsdatum: '',
-    sitz: '',
-    hrb: '',
-    amtsgericht: '',
-
-    ustId: '',
-    wirtschaftsId: '',
-    steuerMeldung: '',
-    lohnsteuerMeldung: '',
-    dauerfrist: false,
-
-    steuernummern: [''],
-
-    gesellschafter: [{ name: '' }],
-    geschaeftsfuehrer: [{ name: '' }],
-    inhaber: { name: '', steuerId: '' },
-
-    kontakte: [{ name: '', email: '', telefon: '' }]
-  });
-
-  const isEinzelunternehmen = form.rechtsform === 'Einzelunternehmen';
+  const [changes, setChanges] = useState(emptyChangeState);
+  const [status, setStatus] = useState(null);
 
   function update(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setChanges((prev) => ({ ...prev, [key]: value }));
   }
 
-  function updateArray(key, index, field, value) {
-    const updated = [...form[key]];
-    updated[index][field] = value;
-    update(key, updated);
-  }
+  function handleSubmit(e) {
+    e.preventDefault();
 
-  function addItem(key, template) {
-    update(key, [...form[key], template]);
-  }
+    const hasAnyChange = Object.entries(changes).some(([key, value]) => {
+      if (key === 'begruendung') return false;
+      return String(value).trim() !== '';
+    });
 
-  function removeItem(key, index) {
-    const updated = form[key].filter((_, i) => i !== index);
-    update(key, updated);
+    if (!hasAnyChange) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte mindestens eine gewünschte Änderung eintragen.'
+      });
+      return;
+    }
+
+    setStatus({
+      type: 'success',
+      message:
+        'Die Stammdatenanpassung wurde eingereicht. Nach interner Prüfung werden freigegebene Änderungen übernommen.'
+    });
+
+    setChanges(emptyChangeState);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
-    <main style={container}>
-      <div style={card}>
+    <main style={pageWrap}>
+      <div style={pageInner}>
+        <section style={heroCard}>
+          <div style={badge}>Kundenportal</div>
+          <h1 style={title}>Stammdaten</h1>
+          <p style={subtitle}>
+            Hier sehen Sie die aktuell hinterlegten Stammdaten. Änderungen werden
+            nicht direkt überschrieben, sondern als Anpassung eingereicht und nach
+            interner Prüfung freigegeben.
+          </p>
 
-        <h1 style={title}>Stammdaten</h1>
-
-        {/* UNTERNEHMEN */}
-        <section style={section}>
-          <h3>Unternehmensdaten</h3>
-          <div style={grid}>
-            <Input label="Firmenname" value={form.firmenname} onChange={(v) => update('firmenname', v)} />
-            <Input label="Rechtsform" value={form.rechtsform} onChange={(v) => update('rechtsform', v)} />
-            <Input label="Gründungsdatum" type="date" value={form.gruendungsdatum} onChange={(v) => update('gruendungsdatum', v)} />
-            <Input label="Unternehmenssitz" value={form.sitz} onChange={(v) => update('sitz', v)} />
-            <Input label="HRB Nummer" value={form.hrb} onChange={(v) => update('hrb', v)} />
-            <Input label="Amtsgericht" value={form.amtsgericht} onChange={(v) => update('amtsgericht', v)} />
+          <div style={infoStrip}>
+            <span style={{ fontWeight: 700 }}>Kundennummer:</span>
+            <span>{currentData.kundennummer}</span>
           </div>
         </section>
 
-        {/* STEUERN */}
-        <section style={section}>
-          <h3>Steuerliche Daten</h3>
+        {status?.type === 'error' && <div style={errorBox}>{status.message}</div>}
+        {status?.type === 'success' && <div style={successBox}>{status.message}</div>}
 
-          <Input label="USt-ID" value={form.ustId} onChange={(v) => {
-            update('ustId', v);
-            update('wirtschaftsId', v + '-00001');
-          }} />
+        <form onSubmit={handleSubmit}>
+          <Section
+            title="Unternehmensdaten"
+            description="Aktuell hinterlegte Daten und gewünschte Änderungen."
+          >
+            <ComparisonField
+              label="Firmenname"
+              currentValue={currentData.firmenname}
+              newValue={changes.firmenname}
+              onChange={(v) => update('firmenname', v)}
+            />
+            <ComparisonField
+              label="Rechtsform"
+              currentValue={currentData.rechtsform}
+              newValue={changes.rechtsform}
+              onChange={(v) => update('rechtsform', v)}
+            />
+            <ComparisonField
+              label="Gründungsdatum"
+              currentValue={formatDate(currentData.gruendungsdatum)}
+              newValue={changes.gruendungsdatum}
+              onChange={(v) => update('gruendungsdatum', v)}
+              type="date"
+            />
+            <ComparisonField
+              label="Unternehmenssitz"
+              currentValue={currentData.unternehmenssitz}
+              newValue={changes.unternehmenssitz}
+              onChange={(v) => update('unternehmenssitz', v)}
+            />
+            <ComparisonField
+              label="HRB Nummer"
+              currentValue={currentData.hrbNummer}
+              newValue={changes.hrbNummer}
+              onChange={(v) => update('hrbNummer', v)}
+            />
+            <ComparisonField
+              label="Amtsgericht"
+              currentValue={currentData.amtsgericht}
+              newValue={changes.amtsgericht}
+              onChange={(v) => update('amtsgericht', v)}
+            />
+          </Section>
 
-          <Input label="Wirtschafts-ID" value={form.wirtschaftsId} disabled />
+          <Section
+            title="Steuerliche Daten"
+            description="Steuerliche Änderungen werden erst nach Prüfung freigegeben."
+          >
+            <ComparisonField
+              label="Steuernummern"
+              currentValue={currentData.steuernummern.join(', ')}
+              newValue={changes.steuernummern}
+              onChange={(v) => update('steuernummern', v)}
+              placeholder="Neue oder zusätzliche Steuernummern eintragen"
+            />
+            <ComparisonField
+              label="USt-ID"
+              currentValue={currentData.ustId}
+              newValue={changes.ustId}
+              onChange={(v) => update('ustId', v)}
+            />
+            <ComparisonField
+              label="Wirtschafts-ID"
+              currentValue={currentData.wirtschaftsId}
+              newValue={changes.wirtschaftsId}
+              onChange={(v) => update('wirtschaftsId', v)}
+              placeholder="Nur eintragen, wenn abweichend oder neu vergeben"
+            />
+            <ComparisonField
+              label="Umsatzsteuer-Voranmeldung"
+              currentValue={currentData.ustMeldung}
+              newValue={changes.ustMeldung}
+              onChange={(v) => update('ustMeldung', v)}
+            />
+            <ComparisonField
+              label="Lohnsteuer-Anmeldung"
+              currentValue={currentData.lohnsteuerMeldung}
+              newValue={changes.lohnsteuerMeldung}
+              onChange={(v) => update('lohnsteuerMeldung', v)}
+            />
+            <ComparisonField
+              label="Dauerfristverlängerung"
+              currentValue={currentData.dauerfristverlaengerung}
+              newValue={changes.dauerfristverlaengerung}
+              onChange={(v) => update('dauerfristverlaengerung', v)}
+              placeholder="z. B. Ja oder Nein"
+            />
+          </Section>
 
-          <Select label="Umsatzsteuer-Voranmeldung" value={form.steuerMeldung}
-            options={['monatlich', 'quartal', 'jährlich']}
-            onChange={(v) => update('steuerMeldung', v)} />
+          <Section
+            title="Gesellschafter / Geschäftsführer / Inhaber"
+            description="Mehrere Änderungen können gesammelt in einem Feld eingetragen werden."
+          >
+            <ComparisonField
+              label="Gesellschafter"
+              currentValue={formatList(currentData.gesellschafter)}
+              newValue={changes.gesellschafter}
+              onChange={(v) => update('gesellschafter', v)}
+              placeholder="Neue Gesellschafter oder Änderungen eintragen"
+              textarea
+            />
+            <ComparisonField
+              label="Geschäftsführer"
+              currentValue={formatList(currentData.geschaeftsfuehrer)}
+              newValue={changes.geschaeftsfuehrer}
+              onChange={(v) => update('geschaeftsfuehrer', v)}
+              placeholder="Neue Geschäftsführer oder Änderungen eintragen"
+              textarea
+            />
+            <ComparisonField
+              label="Inhaber"
+              currentValue={currentData.inhaber || 'Nicht zutreffend'}
+              newValue={changes.inhaber}
+              onChange={(v) => update('inhaber', v)}
+              placeholder="Nur bei Einzelunternehmen relevant"
+            />
+          </Section>
 
-          <Select label="Lohnsteuer-Anmeldung" value={form.lohnsteuerMeldung}
-            options={['monatlich', 'quartal', 'jährlich']}
-            onChange={(v) => update('lohnsteuerMeldung', v)} />
+          <Section
+            title="Ansprechpartner / Kommunikation"
+            description="Mehrere Ansprechpartner, E-Mails und Telefonnummern können hier gesammelt gemeldet werden."
+          >
+            <ComparisonField
+              label="Aktuelle Ansprechpartner"
+              currentValue={formatContacts(currentData.ansprechpartner)}
+              newValue={changes.ansprechpartner}
+              onChange={(v) => update('ansprechpartner', v)}
+              placeholder="Neue Ansprechpartner, E-Mails oder Telefonnummern eintragen"
+              textarea
+            />
+          </Section>
 
-          <Checkbox
-            label="Dauerfristverlängerung aktiv"
-            checked={form.dauerfrist}
-            onChange={(v) => update('dauerfrist', v)}
-          />
-
-          <h4>Steuernummern</h4>
-          {form.steuernummern.map((sn, i) => (
-            <div key={i} style={row}>
-              <Input value={sn} onChange={(v) => {
-                const updated = [...form.steuernummern];
-                updated[i] = v;
-                update('steuernummern', updated);
-              }} />
-              <button onClick={() => removeItem('steuernummern', i)}>X</button>
+          <Section
+            title="Hinweis zur Änderung"
+            description="Optional können Sie kurz erläutern, warum die Änderung erforderlich ist."
+          >
+            <div style={singleFieldWrap}>
+              <label style={labelStyle}>Begründung / Hinweis</label>
+              <textarea
+                value={changes.begruendung}
+                onChange={(e) => update('begruendung', e.target.value)}
+                placeholder="Optionaler Hinweis zur Änderung"
+                style={textareaStyle}
+              />
             </div>
-          ))}
-          <button onClick={() => addItem('steuernummern', '')}>+ Steuernummer</button>
-        </section>
+          </Section>
 
-        {/* PERSONEN */}
-        {!isEinzelunternehmen ? (
-          <>
-            <section style={section}>
-              <h3>Gesellschafter</h3>
-              {form.gesellschafter.map((g, i) => (
-                <div key={i} style={row}>
-                  <Input value={g.name} onChange={(v) => updateArray('gesellschafter', i, 'name', v)} />
-                  <button onClick={() => removeItem('gesellschafter', i)}>X</button>
-                </div>
-              ))}
-              <button onClick={() => addItem('gesellschafter', { name: '' })}>+ hinzufügen</button>
-            </section>
-
-            <section style={section}>
-              <h3>Geschäftsführer</h3>
-              {form.geschaeftsfuehrer.map((g, i) => (
-                <div key={i} style={row}>
-                  <Input value={g.name} onChange={(v) => updateArray('geschaeftsfuehrer', i, 'name', v)} />
-                  <button onClick={() => removeItem('geschaeftsfuehrer', i)}>X</button>
-                </div>
-              ))}
-              <button onClick={() => addItem('geschaeftsfuehrer', { name: '' })}>+ hinzufügen</button>
-            </section>
-          </>
-        ) : (
-          <section style={section}>
-            <h3>Inhaber</h3>
-            <Input label="Name" value={form.inhaber.name} onChange={(v) => update('inhaber', { ...form.inhaber, name: v })} />
-            <Input label="Steuer-ID" value={form.inhaber.steuerId} onChange={(v) => update('inhaber', { ...form.inhaber, steuerId: v })} />
-          </section>
-        )}
-
-        {/* KONTAKTE */}
-        <section style={section}>
-          <h3>Ansprechpartner / Kontakte</h3>
-
-          {form.kontakte.map((k, i) => (
-            <div key={i} style={contactCard}>
-              <Input label="Name" value={k.name} onChange={(v) => updateArray('kontakte', i, 'name', v)} />
-              <Input label="E-Mail" value={k.email} onChange={(v) => updateArray('kontakte', i, 'email', v)} />
-              <Input label="Telefon" value={k.telefon} onChange={(v) => updateArray('kontakte', i, 'telefon', v)} />
-              <button onClick={() => removeItem('kontakte', i)}>Kontakt entfernen</button>
+          <div style={footerBar}>
+            <div style={footerHint}>
+              Änderungen werden zunächst intern geprüft und erst danach in die
+              gültigen Stammdaten übernommen.
             </div>
-          ))}
-
-          <button onClick={() => addItem('kontakte', { name: '', email: '', telefon: '' })}>
-            + Ansprechpartner hinzufügen
-          </button>
-        </section>
-
-        <button style={button}>Änderungen speichern</button>
-
+            <button type="submit" style={submitButton}>
+              Stammdatenanpassung einreichen
+            </button>
+          </div>
+        </form>
       </div>
     </main>
   );
 }
 
-/* UI */
-function Input({ label, value, onChange, type = 'text', disabled = false }) {
+function Section({ title, description, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {label && <label>{label}</label>}
-      <input
-        value={value}
-        type={type}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        style={input}
-      />
+    <section style={sectionCard}>
+      <div style={{ marginBottom: 18 }}>
+        <h2 style={sectionTitle}>{title}</h2>
+        <p style={sectionDescription}>{description}</p>
+      </div>
+      <div style={sectionGrid}>{children}</div>
+    </section>
+  );
+}
+
+function ComparisonField({
+  label,
+  currentValue,
+  newValue,
+  onChange,
+  placeholder = 'Gewünschte Änderung eintragen',
+  type = 'text',
+  textarea = false
+}) {
+  return (
+    <div style={comparisonWrap}>
+      <label style={labelStyle}>{label}</label>
+
+      <div style={comparisonCard}>
+        <div style={currentBox}>
+          <div style={miniLabel}>Aktuell hinterlegt</div>
+          <div style={currentValueStyle}>{currentValue || '—'}</div>
+        </div>
+
+        <div style={arrowBox}>→</div>
+
+        <div style={newBox}>
+          <div style={miniLabel}>Neue gewünschte Angabe</div>
+          {textarea ? (
+            <textarea
+              value={newValue}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              style={textareaStyle}
+            />
+          ) : (
+            <input
+              type={type}
+              value={newValue}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              style={inputStyle}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Select({ label, value, onChange, options }) {
-  return (
-    <div>
-      <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} style={input}>
-        <option value="">Bitte wählen</option>
-        {options.map((o) => <option key={o}>{o}</option>)}
-      </select>
-    </div>
-  );
+function formatList(items) {
+  if (!items || !items.length) return '—';
+  return items.join(', ');
 }
 
-function Checkbox({ label, checked, onChange }) {
-  return (
-    <label style={{ display: 'flex', gap: 10 }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
-  );
+function formatContacts(items) {
+  if (!items || !items.length) return '—';
+  return items
+    .map((item) => `${item.name} | ${item.email} | ${item.telefon}`)
+    .join('\n');
 }
 
-const container = { padding: 40, background: '#f5f3ee' }; const card = { background: '#fff', padding: 30, borderRadius: 20, maxWidth: 1000, margin: 'auto' }; const section = { marginBottom: 30 }; const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }; const row = { display: 'flex', gap: 10, marginBottom: 10 }; const contactCard = { border: '1px solid #ddd', padding: 10, marginBottom: 10 }; const input = { padding: 10, borderRadius: 8, border: '1px solid #ccc' }; const button = { padding: 14, background: '#8c6b43', color: '#fff', borderRadius: 10 }; const title = { fontSize: 28, marginBottom: 20 };
+function formatDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('de-DE');
+}
+
+const pageWrap = {
+  minHeight: '100vh',
+  background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
+  padding: '32px 20px 60px'
+};
+
+const pageInner = {
+  maxWidth: '1120px',
+  margin: '0 auto'
+};
+
+const heroCard = {
+  background: '#ffffff',
+  border: '1px solid #e7e2d8',
+  borderRadius: '24px',
+  padding: '34px 36px',
+  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.06)',
+  marginBottom: '22px'
+};
+
+const badge = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  borderRadius: '999px',
+  border: '1px solid #d8d2c6',
+  background: '#faf8f3',
+  color: '#5f5a4f',
+  fontSize: '14px',
+  fontWeight: '600',
+  marginBottom: '20px'
+};
+
+const title = {
+  fontSize: '38px',
+  fontWeight: '700',
+  color: '#101828',
+  margin: '0 0 10px'
+};
+
+const subtitle = {
+  fontSize: '16px',
+  lineHeight: 1.8,
+  color: '#475467',
+  maxWidth: '850px',
+  margin: 0
+};
+
+const infoStrip = {
+  marginTop: '22px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '12px 16px',
+  borderRadius: '14px',
+  background: '#f8f4ec',
+  border: '1px solid #eadfcd',
+  color: '#5d4a2f'
+};
+
+const sectionCard = {
+  background: '#ffffff',
+  border: '1px solid #e7e2d8',
+  borderRadius: '22px',
+  padding: '28px',
+  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.04)',
+  marginBottom: '18px'
+};
+
+const sectionTitle = {
+  fontSize: '24px',
+  fontWeight: '700',
+  color: '#101828',
+  margin: '0 0 8px'
+};
+
+const sectionDescription = {
+  fontSize: '14px',
+  lineHeight: 1.7,
+  color: '#667085',
+  margin: 0
+};
+
+const sectionGrid = {
+  display: 'grid',
+  gap: '18px'
+};
+
+const comparisonWrap = {
+  display: 'grid',
+  gap: '8px'
+};
+
+const labelStyle = {
+  fontSize: '14px',
+  fontWeight: '700',
+  color: '#344054'
+};
+
+const comparisonCard = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 60px 1fr',
+  gap: '14px',
+  alignItems: 'stretch'
+};
+
+const currentBox = {
+  background: '#f9fafb',
+  border: '1px solid #e4e7ec',
+  borderRadius: '16px',
+  padding: '16px'
+};
+
+const newBox = {
+  background: '#fffdf8',
+  border: '1px solid #eadfcd',
+  borderRadius: '16px',
+  padding: '16px'
+};
+
+const arrowBox = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '22px',
+  color: '#8c6b43',
+  fontWeight: '700'
+};
+
+const miniLabel = {
+  fontSize: '12px',
+  fontWeight: '700',
+  color: '#667085',
+  marginBottom: '8px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em'
+};
+
+const currentValueStyle = {
+  whiteSpace: 'pre-wrap',
+  lineHeight: 1.7,
+  color: '#101828',
+  fontSize: '14px'
+};
+
+const inputStyle = {
+  width: '100%',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px',
+  background: '#fff',
+  color: '#101828',
+  boxSizing: 'border-box'
+};
+
+const textareaStyle = {
+  width: '100%',
+  minHeight: '110px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px',
+  background: '#fff',
+  color: '#101828',
+  resize: 'vertical',
+  boxSizing: 'border-box',
+  lineHeight: 1.6
+};
+
+const singleFieldWrap = {
+  display: 'grid',
+  gap: '8px'
+};
+
+const footerBar = {
+  marginTop: '24px',
+  background: '#ffffff',
+  border: '1px solid #e7e2d8',
+  borderRadius: '22px',
+  padding: '22px 24px',
+  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.04)',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '20px',
+  flexWrap: 'wrap'
+};
+
+const footerHint = {
+  fontSize: '14px',
+  lineHeight: 1.7,
+  color: '#667085',
+  maxWidth: '700px'
+};
+
+const submitButton = {
+  padding: '16px 22px',
+  borderRadius: '14px',
+  border: 'none',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: '15px',
+  cursor: 'pointer',
+  boxShadow: '0 8px 18px rgba(140, 107, 67, 0.18)'
+};
+
+const errorBox = {
+  marginBottom: '16px',
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318'
+};
+
+const successBox = {
+  marginBottom: '16px',
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#ecfdf3',
+  border: '1px solid #abefc6',
+  color: '#067647'
+};
+
