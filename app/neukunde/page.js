@@ -15,20 +15,24 @@ export default function NeukundePage() {
             </div>
 
             <div className="brand-sub">
-              Wählen Sie den passenden Bereich
+              Übermitteln Sie Ihre Angaben strukturiert und digital
             </div>
           </div>
         </div>
 
-        {/* HERO TEXT */}
+        {/* EINLEITUNG */}
         <section className="card">
           <h1 className="hero-title">
-            Starten Sie Ihre Zusammenarbeit
+            Angaben zur Zusammenarbeit
           </h1>
 
           <p className="hero-text">
-            Wählen Sie den passenden Bereich für Ihr Anliegen. 
-            Anschließend führen wir Sie Schritt für Schritt durch die digitale Aufnahme.
+            Über dieses System erfassen wir alle relevanten Informationen für die Zusammenarbeit.
+            Die Daten werden strukturiert übermittelt und bilden die Grundlage für die weitere Bearbeitung.
+          </p>
+
+          <p className="hero-subtext">
+            Bitte wählen Sie den passenden Bereich und geben Sie die erforderlichen Informationen vollständig an.
           </p>
         </section>
 
@@ -37,23 +41,23 @@ export default function NeukundePage() {
 
           <Card
             title="Unternehmensgründung"
-            text="Sie möchten ein Unternehmen gründen? Starten Sie hier den vollständigen digitalen Gründungsprozess."
+            text="Erfassung aller relevanten Angaben für die Vorbereitung und Umsetzung Ihrer Unternehmensgründung."
             link="/neukunde/gruendung"
-            button="Gründung starten"
+            button="Angaben erfassen"
           />
 
           <Card
             title="Beratung & laufende Betreuung"
-            text="Für bestehende Unternehmen: Buchhaltung, Lohnabrechnung und individuelle Beratung."
+            text="Übermittlung Ihrer Unternehmensdaten für Buchhaltung, Lohnabrechnung und steuerliche Betreuung."
             link="/neukunde/beratung"
-            button="Bereich auswählen"
+            button="Daten übermitteln"
           />
 
           <Card
             title="Geschäftsadresse & Virtual Office"
-            text="Nutzen Sie unsere Geschäftsadresse inklusive Postempfang und Weiterleitung."
+            text="Bereitstellung der erforderlichen Informationen für Geschäftsadresse, Postempfang und Weiterleitung."
             link="/neukunde/geschaeftsadresse"
-            button="Jetzt starten"
+            button="Informationen bereitstellen"
           />
 
         </section>
