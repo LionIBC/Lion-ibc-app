@@ -310,20 +310,23 @@ export default function GruendungPage() {
                 required
               />
 
-              {form.rechtsform !== 'Einzelunternehmen' ? (
-                <InputField
-                  label="Alternativer Firmenname 1"
-                  value={form.alternativeFirmennamen}
-                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
-                  required
-                />
-              ) : (
-                <InputField
-                  label="Alternativer Firmenname 1"
-                  value={form.alternativeFirmennamen}
-                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
-                />
-              )}
+              {form.rechtsform !== 'Einzelunternehmen' && (
+  <div style={{ marginTop: '14px', display: 'grid', gap: '14px' }}>
+    <InputField
+      label="Alternativer Firmenname 1"
+      value={form.alternativeFirmennamen}
+      onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+      required
+    />
+
+    <InputField
+      label="Alternativer Firmenname 2"
+      value={form.alternativeFirmennamen2}
+      onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
+      required
+    />
+  </div>
+)}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={labelStyle}>Rechtsform *</label>
@@ -367,15 +370,7 @@ export default function GruendungPage() {
               />
             </div>
 
-            {form.rechtsform !== 'Einzelunternehmen' && (
-              <div style={{ marginTop: '14px' }}>
-                <InputField
-                  label="Alternativer Firmenname 2"
-                  value={form.alternativeFirmennamen2}
-                  onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
-                  required
-                />
-              </div>
+           
             )}
 
             {form.rechtsform !== 'Einzelunternehmen' && (
