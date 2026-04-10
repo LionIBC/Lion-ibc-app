@@ -83,11 +83,11 @@ export default function HomePage() {
             gap: '16px',
             flexWrap: 'wrap'
           }}>
-            <Link href="/neukunde" style={primaryButton}>
+            <Link href="/neukunde" className="btn-primary">
               Neukunde werden
             </Link>
 
-            <Link href="/mitarbeiter" style={secondaryButton}>
+            <Link href="/mitarbeiter" className="btn-secondary">
               Login Mandantenportal
             </Link>
           </div>
@@ -157,22 +157,3 @@ function Feature({ title, text }) {
     </div>
   );
 }
-
-const primaryButton = {
-  padding: '16px 28px',
-  borderRadius: '999px',
-  background: '#8c6b43',
-  color: '#fff',
-  textDecoration: 'none',
-  fontWeight: '700'
-};
-
-const secondaryButton = {
-  padding: '16px 28px',
-  borderRadius: '999px',
-  background: '#ffffff',
-  border: '1px solid #d0d5dd',
-  color: '#101828',
-  textDecoration: 'none',
-  fontWeight: '700'
-};
