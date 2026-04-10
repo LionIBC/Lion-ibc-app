@@ -16,13 +16,31 @@ export default function BeratungPage() {
     rechtsform: '',
     branche: '',
 
+    hrbNummer: '',
+    amtsgericht: '',
+    steuernummer: '',
+    umsatzsteuerId: '',
+    steuerIdInhaber: '',
+
     fibu: false,
     lohn: false,
     unternehmensberatung: false,
 
+    startFibu: '',
+    startLohnabrechnung: '',
+    startUnternehmensberatung: '',
+
+    rueckwirkendeArbeiten: '',
+    rueckwirkendAb: '',
+
     mitarbeiter: '',
     anzahlMitarbeiter: '',
     betriebsnummer: '',
+    unternehmensnummer: '',
+    bgPin: '',
+
+    ustvaLetzteMeldung: '',
+    datevDatenVorhanden: '',
 
     steuerberaterBisher: '',
     startGewuenscht: '',
@@ -36,8 +54,6 @@ export default function BeratungPage() {
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState(null);
 
-  const [gewerbeanmeldung, setGewerbeanmeldung] = useState(null);
-  const [handelsregisterauszug, setHandelsregisterauszug] = useState(null);
   const [weitereUnterlagen, setWeitereUnterlagen] = useState([]);
 
   const canvasRef = useRef(null);
@@ -189,6 +205,33 @@ export default function BeratungPage() {
       return;
     }
 
+    if (form.lohn && String(form.mitarbeiter).toLowerCase() === 'ja' && !form.unternehmensnummer) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Unternehmensnummer angeben, wenn Mitarbeiter angemeldet werden.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.lohn && String(form.mitarbeiter).toLowerCase() === 'ja' && !form.bgPin) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die BG-PIN angeben, wenn Mitarbeiter angemeldet werden.'
+      });
+      setSending(false);
+      return;
+    }
+
+    if (form.rechtsform === 'Einzelunternehmen' && !form.steuerIdInhaber) {
+      setStatus({
+        type: 'error',
+        message: 'Bitte die Steuer-ID des Inhabers angeben.'
+      });
+      setSending(false);
+      return;
+    }
+
     try {
       const formData = new FormData();
 
@@ -198,14 +241,6 @@ export default function BeratungPage() {
 
       const signatureDataUrl = canvasRef.current.toDataURL('image/png');
       formData.append('unterschrift', signatureDataUrl);
-
-      if (gewerbeanmeldung) {
-        formData.append('gewerbeanmeldung', gewerbeanmeldung);
-      }
-
-      if (handelsregisterauszug) {
-        formData.append('handelsregisterauszug', handelsregisterauszug);
-      }
 
       Array.from(weitereUnterlagen).forEach((file) => {
         formData.append('weitereUnterlagen', file);
@@ -224,8 +259,6 @@ export default function BeratungPage() {
           message: data.message || 'Die Daten wurden erfolgreich übermittelt.'
         });
         setForm(initialState);
-        setGewerbeanmeldung(null);
-        setHandelsregisterauszug(null);
         setWeitereUnterlagen([]);
         clearSignature();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -289,6 +322,7 @@ export default function BeratungPage() {
                 label="Rechtsform"
                 value={form.rechtsform}
                 onChange={(e) => update('rechtsform', e.target.value)}
+                required
               />
               <InputField
                 label="Straße / Hausnummer"
@@ -310,7 +344,38 @@ export default function BeratungPage() {
                 value={form.branche}
                 onChange={(e) => update('branche', e.target.value)}
               />
+              <InputField
+                label="HRB Nummer"
+                value={form.hrbNummer}
+                onChange={(e) => update('hrbNummer', e.target.value)}
+              />
+              <InputField
+                label="Amtsgericht"
+                value={form.amtsgericht}
+                onChange={(e) => update('amtsgericht', e.target.value)}
+              />
+              <InputField
+                label="Steuernummer"
+                value={form.steuernummer}
+                onChange={(e) => update('steuernummer', e.target.value)}
+              />
+              <InputField
+                label="Umsatzsteuer-ID"
+                value={form.umsatzsteuerId}
+                onChange={(e) => update('umsatzsteuerId', e.target.value)}
+              />
             </div>
+
+            {form.rechtsform === 'Einzelunternehmen' && (
+              <div style={{ marginTop: '14px' }}>
+                <InputField
+                  label="Steuer-ID des Inhabers"
+                  value={form.steuerIdInhaber}
+                  onChange={(e) => update('steuerIdInhaber', e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             <h3 style={sectionTitle}>Ansprechpartner</h3>
             <div style={grid}>
@@ -359,6 +424,69 @@ export default function BeratungPage() {
               />
             </div>
 
+            <h3 style={sectionTitle}>Start & Übernahme</h3>
+            <div style={grid}>
+              {form.fibu && (
+                <InputField
+                  label="Ab wann soll Finanzbuchhaltung starten?"
+                  value={form.startFibu}
+                  onChange={(e) => update('startFibu', e.target.value)}
+                />
+              )}
+
+              {form.lohn && (
+                <InputField
+                  label="Ab wann soll Lohnabrechnung starten?"
+                  value={form.startLohnabrechnung}
+                  onChange={(e) => update('startLohnabrechnung', e.target.value)}
+                />
+              )}
+
+              {form.unternehmensberatung && (
+                <InputField
+                  label="Ab wann soll Unternehmensberatung starten?"
+                  value={form.startUnternehmensberatung}
+                  onChange={(e) => update('startUnternehmensberatung', e.target.value)}
+                />
+              )}
+
+              <InputField
+                label="Rückwirkende Arbeiten?"
+                placeholder="ja / nein"
+                value={form.rueckwirkendeArbeiten}
+                onChange={(e) => update('rueckwirkendeArbeiten', e.target.value)}
+              />
+            </div>
+
+            {String(form.rueckwirkendeArbeiten).toLowerCase() === 'ja' && (
+              <div style={{ marginTop: '14px' }}>
+                <InputField
+                  label="Ab welchem Zeitraum rückwirkend?"
+                  value={form.rueckwirkendAb}
+                  onChange={(e) => update('rueckwirkendAb', e.target.value)}
+                />
+              </div>
+            )}
+
+            {form.fibu && (
+              <>
+                <h3 style={sectionTitle}>Buchhaltung</h3>
+                <div style={grid}>
+                  <InputField
+                    label="Wann war die letzte Umsatzsteuervoranmeldung?"
+                    value={form.ustvaLetzteMeldung}
+                    onChange={(e) => update('ustvaLetzteMeldung', e.target.value)}
+                  />
+                  <InputField
+                    label="Buchungsdaten vom Vorberater im DATEV-Format vorhanden?"
+                    placeholder="ja / nein"
+                    value={form.datevDatenVorhanden}
+                    onChange={(e) => update('datevDatenVorhanden', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
             <h3 style={sectionTitle}>Mitarbeiter</h3>
             <div style={grid}>
               <InputField
@@ -376,7 +504,19 @@ export default function BeratungPage() {
                 label="Betriebsnummer"
                 value={form.betriebsnummer}
                 onChange={(e) => update('betriebsnummer', e.target.value)}
-                hint="Pflicht nur, wenn Mitarbeiter angemeldet werden."
+                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
+              />
+              <InputField
+                label="Unternehmensnummer"
+                value={form.unternehmensnummer}
+                onChange={(e) => update('unternehmensnummer', e.target.value)}
+                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
+              />
+              <InputField
+                label="BG PIN"
+                value={form.bgPin}
+                onChange={(e) => update('bgPin', e.target.value)}
+                hint="Pflicht, wenn Mitarbeiter angemeldet werden."
               />
               <InputField
                 label="Gewünschter Start"
@@ -403,20 +543,15 @@ export default function BeratungPage() {
             />
 
             <h3 style={sectionTitle}>Unterlagen</h3>
-            <div style={uploadGrid}>
-              <UploadField
-                label="Gewerbeanmeldung"
-                onChange={(e) => setGewerbeanmeldung(e.target.files?.[0] || null)}
-              />
-              <UploadField
-                label="Handelsregisterauszug"
-                onChange={(e) => setHandelsregisterauszug(e.target.files?.[0] || null)}
-              />
-            </div>
+            <p style={hintText}>
+              Bitte laden Sie alle relevanten Unterlagen gesammelt hoch, z. B.
+              Gewerbeanmeldung, Handelsregisterauszug, steuerliche Unterlagen,
+              DATEV-Daten, Auswertungen oder weitere Dokumente.
+            </p>
 
-            <div style={{ marginTop: '14px' }}>
+            <div style={{ marginTop: '10px' }}>
               <UploadField
-                label="Weitere Unterlagen"
+                label="Unterlagen hochladen"
                 multiple
                 onChange={(e) => setWeitereUnterlagen(e.target.files || [])}
               />
@@ -603,13 +738,13 @@ const hintStyle = {
   color: '#667085'
 };
 
-const grid = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '14px'
+const hintText = {
+  color: '#667085',
+  fontSize: '14px',
+  lineHeight: 1.7
 };
 
-const uploadGrid = {
+const grid = {
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
   gap: '14px'
