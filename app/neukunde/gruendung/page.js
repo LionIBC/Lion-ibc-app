@@ -302,14 +302,8 @@ export default function GruendungPage() {
             </div>
 
             <h3 style={sectionTitle}>Gründungsvorhaben</h3>
-            <div style={grid}>
-              <InputField
-                label="Gewünschter Firmenname"
-                value={form.firmenname}
-                onChange={(e) => update('firmenname', e.target.value)}
-                required
-              />
 
+            <div style={grid}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={labelStyle}>Rechtsform *</label>
                 <select
@@ -330,39 +324,48 @@ export default function GruendungPage() {
               </div>
 
               <InputField
-                label="Unternehmenssitz"
-                placeholder="Ort"
-                value={form.unternehmenssitz}
-                onChange={(e) => update('unternehmenssitz', e.target.value)}
+                label="Gewünschter Firmenname"
+                value={form.firmenname}
+                onChange={(e) => update('firmenname', e.target.value)}
                 required
-              />
-
-              <InputField
-                label="Geschäftsadresse vorhanden?"
-                placeholder="ja / nein"
-                value={form.geschaeftsadresseVorhanden}
-                onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
               />
             </div>
 
-            <div style={{ marginTop: '14px', maxWidth: '540px', display: 'grid', gap: '14px' }}>
-              {form.rechtsform !== 'Einzelunternehmen' && (
-                <>
-                  <InputField
-                    label="Alternativer Firmenname 1"
-                    value={form.alternativeFirmennamen}
-                    onChange={(e) => update('alternativeFirmennamen', e.target.value)}
-                    required
-                  />
+            {form.rechtsform !== 'Einzelunternehmen' && (
+              <div style={{ marginTop: '14px', display: 'grid', gap: '14px' }}>
+                <InputField
+                  label="Alternativer Firmenname 1"
+                  value={form.alternativeFirmennamen}
+                  onChange={(e) => update('alternativeFirmennamen', e.target.value)}
+                  required
+                />
 
-                  <InputField
-                    label="Alternativer Firmenname 2"
-                    value={form.alternativeFirmennamen2}
-                    onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
-                    required
-                  />
-                </>
-              )}
+                <InputField
+                  label="Alternativer Firmenname 2"
+                  value={form.alternativeFirmennamen2}
+                  onChange={(e) => update('alternativeFirmennamen2', e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <div style={{ marginTop: '14px' }}>
+              <div style={grid}>
+                <InputField
+                  label="Unternehmenssitz"
+                  placeholder="Ort"
+                  value={form.unternehmenssitz}
+                  onChange={(e) => update('unternehmenssitz', e.target.value)}
+                  required
+                />
+
+                <InputField
+                  label="Geschäftsadresse vorhanden?"
+                  placeholder="ja / nein"
+                  value={form.geschaeftsadresseVorhanden}
+                  onChange={(e) => update('geschaeftsadresseVorhanden', e.target.value)}
+                />
+              </div>
             </div>
 
             <div style={{ marginTop: '20px' }}>
