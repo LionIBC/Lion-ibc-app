@@ -7,14 +7,14 @@ export default function HomePage() {
       background: 'linear-gradient(to bottom, #f8f5ef 0%, #f2ede4 100%)',
       padding: '40px 20px'
     }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
 
         {/* HEADER */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '20px',
-          marginBottom: '40px'
+          marginBottom: '30px'
         }}>
           <img src="/logo.png" style={{ height: '90px' }} />
 
@@ -43,32 +43,45 @@ export default function HomePage() {
           border: '1px solid #e7e2d8',
           borderRadius: '28px',
           padding: '50px',
-          boxShadow: '0 12px 30px rgba(0,0,0,0.05)',
-          textAlign: 'center'
+          boxShadow: '0 12px 30px rgba(0,0,0,0.05)'
         }}>
           
           <h1 style={{
-            fontSize: '42px',
+            fontSize: '44px',
             fontWeight: '800',
-            marginBottom: '20px'
+            marginBottom: '18px',
+            lineHeight: 1.1
           }}>
-            Digitale Zusammenarbeit
+            Digitale Mandantenaufnahme & Zusammenarbeit
           </h1>
 
           <p style={{
             fontSize: '18px',
             color: '#475467',
-            marginBottom: '40px'
+            maxWidth: '700px',
+            marginBottom: '25px'
           }}>
-            Starten Sie Ihre Zusammenarbeit oder greifen Sie auf Ihr Mandantenportal zu.
+            Lion IBC bietet Ihnen eine strukturierte und digitale Möglichkeit,
+            Ihre Zusammenarbeit mit uns zu starten. Alle relevanten Daten,
+            Unterlagen und Informationen werden sicher und effizient übermittelt.
+          </p>
+
+          <p style={{
+            fontSize: '16px',
+            color: '#667085',
+            maxWidth: '700px',
+            marginBottom: '35px'
+          }}>
+            Unser System ermöglicht eine schnelle Bearbeitung, klare Prozesse
+            und eine transparente Kommunikation – von der ersten Anfrage bis
+            zur laufenden Betreuung.
           </p>
 
           {/* BUTTONS */}
           <div style={{
             display: 'flex',
-            flexDirection: 'column',
             gap: '16px',
-            alignItems: 'center'
+            flexWrap: 'wrap'
           }}>
             <Link href="/neukunde" style={primaryButton}>
               Neukunde werden
@@ -81,32 +94,85 @@ export default function HomePage() {
 
         </section>
 
+        {/* VORTEILE */}
+        <section style={{
+          marginTop: '30px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '20px'
+        }}>
+
+          <Feature
+            title="Strukturierte Prozesse"
+            text="Alle notwendigen Angaben werden systematisch erfasst, sodass eine schnelle und fehlerfreie Bearbeitung möglich ist."
+          />
+
+          <Feature
+            title="Digitale Übermittlung"
+            text="Dokumente, Daten und Unterschriften werden vollständig digital übermittelt und verarbeitet."
+          />
+
+          <Feature
+            title="Persönliche Betreuung"
+            text="Trotz digitaler Prozesse bleibt die persönliche Beratung und individuelle Betreuung im Mittelpunkt."
+          />
+
+        </section>
+
+        {/* FOOTER */}
+        <div style={{
+          marginTop: '40px',
+          fontSize: '14px',
+          color: '#667085'
+        }}>
+          Lion International Business Consulting SLU
+        </div>
+
       </div>
     </main>
   );
 }
 
+function Feature({ title, text }) {
+  return (
+    <div style={{
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: '18px',
+      padding: '20px'
+    }}>
+      <div style={{
+        fontWeight: '700',
+        marginBottom: '8px'
+      }}>
+        {title}
+      </div>
+
+      <div style={{
+        fontSize: '14px',
+        color: '#667085'
+      }}>
+        {text}
+      </div>
+    </div>
+  );
+}
+
 const primaryButton = {
-  padding: '18px 32px',
+  padding: '16px 28px',
   borderRadius: '999px',
   background: '#8c6b43',
   color: '#fff',
   textDecoration: 'none',
-  fontWeight: '700',
-  fontSize: '16px',
-  minWidth: '260px',
-  textAlign: 'center'
+  fontWeight: '700'
 };
 
 const secondaryButton = {
-  padding: '18px 32px',
+  padding: '16px 28px',
   borderRadius: '999px',
   background: '#ffffff',
   border: '1px solid #d0d5dd',
   color: '#101828',
   textDecoration: 'none',
-  fontWeight: '700',
-  fontSize: '16px',
-  minWidth: '260px',
-  textAlign: 'center'
+  fontWeight: '700'
 };
