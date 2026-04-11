@@ -1,88 +1,53 @@
 'use client';
 
-import { useState } from 'react';
-
-const mockRequests = [
-  {
-    id: 'REQ-001',
-    kundennummer: 'K-10023',
-    firma: 'Muster GmbH',
-    changes: {
-      firmenname: { old: 'Muster GmbH', new: 'Muster Holding GmbH' },
-      ustId: { old: 'DE123456789', new: 'DE999999999' }
-    },
-    begruendung: 'Umfirmierung und neue steuerliche Registrierung',
-    status: 'offen',
-    createdAt: '2026-04-10'
-  }
-];
+import { useEffect, useState } from 'react';
 
 export default function InternalStammdatenPage() {
-  const [requests, setRequests] = useState(mockRequests);
+  const [requests, setRequests] = useState([]);
 
-  function handleAction(id, action) {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: action } : r
-      )
-    );
+  async function loadData() {
+    const res = await fetch('/api/stammdaten');
+    const data = await res.json();
+    setRequests(data.data || []);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function handleAction(id, status) {
+    await fetch('/api/stammdaten', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status })
+    });
+
+    loadData();
   }
 
   return (
     <main className="page-shell">
       <div className="page-inner">
         <section className="hero-card">
-          <div className="page-badge">Intern</div>
           <h1 className="page-title">Stammdaten Freigaben</h1>
-          <p className="page-subtitle">
-            Prüfen und bestätigen Sie Änderungen von Mandanten. Änderungen werden erst nach Freigabe aktiv übernommen.
-          </p>
         </section>
-
-        {requests.length === 0 && (
-          <div className="status-box warning">
-            Keine offenen Änderungsanfragen vorhanden.
-          </div>
-        )}
 
         <div className="stack-18">
           {requests.map((req) => (
             <div key={req.id} className="section-card">
-              
-              {/* Header */}
-              <div style={headerRow}>
-                <div>
-                  <strong>{req.firma}</strong><br />
-                  <span style={{ color: '#667085' }}>
-                    Kundennummer: {req.kundennummer}
-                  </span>
-                </div>
 
-                <StatusBadge status={req.status} />
-              </div>
+              <strong>Kunde: {req.kundennummer}</strong>
 
-              {/* Änderungen */}
-              <div className="stack-14" style={{ marginTop: 20 }}>
+              <div className="stack-10" style={{ marginTop: 10 }}>
                 {Object.entries(req.changes).map(([key, value]) => (
-                  <div key={key} className="comparison-row">
-                    <div className="current-value">{value.old}</div>
-                    <div className="comparison-arrow">→</div>
-                    <div style={newValueBox}>{value.new}</div>
+                  <div key={key}>
+                    <strong>{key}</strong>: {value}
                   </div>
                 ))}
               </div>
 
-              {/* Begründung */}
-              {req.begruendung && (
-                <div style={infoBox}>
-                  <strong>Begründung:</strong><br />
-                  {req.begruendung}
-                </div>
-              )}
-
-              {/* Aktionen */}
               {req.status === 'offen' && (
-                <div style={actionRow}>
+                <div style={{ marginTop: 15, display: 'flex', gap: 10 }}>
                   <button
                     className="btn-primary"
                     onClick={() => handleAction(req.id, 'freigegeben')}
@@ -98,6 +63,10 @@ export default function InternalStammdatenPage() {
                   </button>
                 </div>
               )}
+
+              <div style={{ marginTop: 10 }}>
+                Status: {req.status}
+              </div>
             </div>
           ))}
         </div>
@@ -105,6 +74,7 @@ export default function InternalStammdatenPage() {
     </main>
   );
 }
+
 
 function StatusBadge({ status }) {
   let color = '#667085';
