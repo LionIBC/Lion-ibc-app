@@ -8,6 +8,7 @@ export default function InternLayout({ children }) {
 
   const navItems = [
     { name: 'Dashboard', href: '/intern' },
+    { name: 'Eingang', href: '/intern/eingang' },
     { name: 'Anfragen', href: '/intern/anfragen' },
     { name: 'Mitarbeitervorgänge', href: '/intern/mitarbeitervorgaenge' },
     { name: 'Tickets', href: '/intern/tickets' },
@@ -77,4 +78,3 @@ const content = {
   flex: 1,
   padding: '30px'
 };
-
