@@ -1,84 +1,110 @@
-let requests = [];
+import { createClient } from '@supabase/supabase-js';
 
-/**
- * POST → neue Stammdatenänderung speichern  */ export async function POST(req) {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// 🔹 Stammdaten laden
+export async function GET(req) {
   try {
-    const body = await req.json();
+    const { searchParams } = new URL(req.url);
+    const kundennummer = searchParams.get('kundennummer');
 
-    const newRequest = {
-      id: 'REQ-' + Date.now(),
-      kundennummer: body.kundennummer,
-      firma: body.firma || '',
-      changes: body.changes || {},
-      begruendung: body.begruendung || '',
-      status: 'offen',
-      createdAt: new Date().toISOString()
-    };
+    const { data, error } = await supabase
+      .from('stammdaten_current')
+      .select('*')
+      .eq('kundennummer', kundennummer)
+      .single();
 
-    requests.unshift(newRequest);
+    if (error) throw error;
 
-    return Response.json({
-      success: true,
-      message: 'Änderung erfolgreich gespeichert',
-      data: newRequest
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: 'Fehler beim Speichern der Anfrage'
-      },
-      { status: 500 }
-    );
+    return Response.json(data);
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500 });
   }
 }
 
-/**
- * GET → alle Anfragen laden
- */
-export async function GET() {
-  return Response.json({
-    success: true,
-    data: requests
-  });
-}
-
-/**
- * PATCH → Status ändern (freigeben / ablehnen)  */ export async function PATCH(req) {
+// 🔹 Änderungswunsch speichern
+export async function POST(req) {
   try {
     const body = await req.json();
 
-    const { id, status } = body;
+    const { kundennummer, changes } = body;
 
-    if (!id || !status) {
-      return Response.json(
-        { success: false, message: 'Ungültige Daten' },
-        { status: 400 }
-      );
+    const { error } = await supabase
+      .from('stammdaten_requests')
+      .insert([
+        {
+          kundennummer,
+          changes
+        }
+      ]);
+
+    if (error) throw error;
+
+    return Response.json({ success: true });
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// 🔹 Intern: Freigabe
+export async function PUT(req) {
+  try {
+    const body = await req.json();
+    const { requestId, approve } = body;
+
+    // Anfrage holen
+    const { data: request } = await supabase
+      .from('stammdaten_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (!request) throw new Error('Request nicht gefunden');
+
+    if (approve) {
+      // aktuelle Daten holen
+      const { data: current } = await supabase
+        .from('stammdaten_current')
+        .select('*')
+        .eq('kundennummer', request.kundennummer)
+        .single();
+
+      const newData = {
+        ...current,
+        ...request.changes
+      };
+
+      // Update durchführen
+      await supabase
+        .from('stammdaten_current')
+        .update(newData)
+        .eq('kundennummer', request.kundennummer);
+
+      // History speichern
+      await supabase.from('stammdaten_history').insert([
+        {
+          kundennummer: request.kundennummer,
+          request_id: request.id,
+          old_data: current,
+          new_data: newData
+        }
+      ]);
     }
 
-    requests = requests.map((r) => {
-      if (r.id === id) {
-        return {
-          ...r,
-          status,
-          decidedAt: new Date().toISOString()
-        };
-      }
-      return r;
-    });
+    // Status ändern
+    await supabase
+      .from('stammdaten_requests')
+      .update({
+        status: approve ? 'freigegeben' : 'abgelehnt',
+        decided_at: new Date()
+      })
+      .eq('id', requestId);
 
-    return Response.json({
-      success: true,
-      message: 'Status aktualisiert'
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: 'Fehler beim Aktualisieren'
-      },
-      { status: 500 }
-    );
+    return Response.json({ success: true });
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500 });
   }
 }
