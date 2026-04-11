@@ -11,14 +11,27 @@ const boardColumns = [
   { key: 'wartet_intern', label: 'Wartet intern' },
   { key: 'erledigt', label: 'Erledigt' } ];
 
+const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch'];
+
 export default function InternTicketsBoardPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
+  const [creating, setCreating] = useState(false);
 
   const [kundennummerFilter, setKundennummerFilter] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+
+  const [newTicket, setNewTicket] = useState({
+    kundennummer: '',
+    title: '',
+    description: '',
+    category: '',
+    priority: 'normal',
+    assigned_to: '',
+    due_date: ''
+  });
 
   useEffect(() => {
     loadTickets();
@@ -44,6 +57,76 @@ export default function InternTicketsBoardPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  function updateNewTicket(key, value) {
+    setNewTicket((prev) => ({
+      ...prev,
+      [key]: value
+    }));
+  }
+
+  async function createTicket(e) {
+    e.preventDefault();
+
+    if (!newTicket.title.trim()) {
+      setStatusBox({
+        type: 'error',
+        message: 'Bitte eine Überschrift für das Ticket eingeben.'
+      });
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setStatusBox(null);
+
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kundennummer: newTicket.kundennummer,
+          title: newTicket.title,
+          description: newTicket.description,
+          category: newTicket.category || 'Allgemein',
+          priority: newTicket.priority,
+          created_by_type: 'employee',
+          created_by: 'Mitarbeiter',
+          assigned_to: newTicket.assigned_to,
+          due_date: newTicket.due_date || null
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Ticket konnte nicht erstellt werden.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Ticket wurde erstellt.'
+      });
+
+      setNewTicket({
+        kundennummer: '',
+        title: '',
+        description: '',
+        category: '',
+        priority: 'normal',
+        assigned_to: '',
+        due_date: ''
+      });
+
+      await loadTickets();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht erstellt werden.'
+      });
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -105,13 +188,111 @@ export default function InternTicketsBoardPage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Tickets</h1>
           <p style={subtitle}>
-            Interne Tafelansicht für alle Tickets. Klicken Sie auf eine Karte, um die
-            vollständige Ticketansicht mit Nachrichten, Aufgaben und weiteren Details zu öffnen.
+            Interne Tafelansicht für alle Tickets. Oben können neue Tickets erstellt werden.
+            Klicken Sie auf eine Karte, um die vollständige Ticketansicht zu öffnen.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
         {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
+
+        <section style={createCard}>
+          <h2 style={sectionTitleNoMargin}>Neues Ticket erstellen</h2>
+
+          <form onSubmit={createTicket} style={createForm}>
+            <div style={formGrid}>
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Kundennummer</label>
+                <input
+                  type="text"
+                  value={newTicket.kundennummer}
+                  onChange={(e) => updateNewTicket('kundennummer', e.target.value)}
+                  placeholder="z. B. K-10023"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Kategorie</label>
+                <input
+                  type="text"
+                  value={newTicket.category}
+                  onChange={(e) => updateNewTicket('category', e.target.value)}
+                  placeholder="z. B. Gründung, Lohn, Buchhaltung"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Priorität</label>
+                <select
+                  value={newTicket.priority}
+                  onChange={(e) => updateNewTicket('priority', e.target.value)}
+                  style={inputStyle}
+                >
+                  {priorityOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Zuständig</label>
+                <input
+                  type="text"
+                  value={newTicket.assigned_to}
+                  onChange={(e) => updateNewTicket('assigned_to', e.target.value)}
+                  placeholder="z. B. Erjon"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Fällig bis</label>
+                <input
+                  type="date"
+                  value={newTicket.due_date}
+                  onChange={(e) => updateNewTicket('due_date', e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={singleFieldWrapWide}>
+                <label style={labelStyle}>Überschrift</label>
+                <input
+                  type="text"
+                  value={newTicket.title}
+                  onChange={(e) => updateNewTicket('title', e.target.value)}
+                  placeholder="Kurze Überschrift für das Ticket"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={singleFieldWrapFull}>
+                <label style={labelStyle}>Beschreibung</label>
+                <textarea
+                  value={newTicket.description}
+                  onChange={(e) => updateNewTicket('description', e.target.value)}
+                  placeholder="Problem, Anfrage oder Aufgabe beschreiben"
+                  style={textareaStyle}
+                />
+              </div>
+            </div>
+
+            <div style={createFooter}>
+              <div style={footerHint}>
+                Intern erstellte Tickets werden im Kundenstatus direkt als
+                <strong> In Bearbeitung</strong> angelegt.
+              </div>
+
+              <button type="submit" style={submitButton} disabled={creating}>
+                {creating ? 'Ticket wird erstellt…' : 'Ticket erstellen'}
+              </button>
+            </div>
+          </form>
+        </section>
 
         <section style={statsGrid}>
           <div style={statCard}>
@@ -234,18 +415,9 @@ export default function InternTicketsBoardPage() {
 }
 
 function priorityBadge(priority) {
-  if (priority === 'kritisch') {
-    return badgeStyle('#fef3f2', '#b42318');
-  }
-
-  if (priority === 'hoch') {
-    return badgeStyle('#fff7ed', '#c4320a');
-  }
-
-  if (priority === 'niedrig') {
-    return badgeStyle('#f2f4f7', '#667085');
-  }
-
+  if (priority === 'kritisch') return badgeStyle('#fef3f2', '#b42318');
+  if (priority === 'hoch') return badgeStyle('#fff7ed', '#c4320a');
+  if (priority === 'niedrig') return badgeStyle('#f2f4f7', '#667085');
   return badgeStyle('#eff8ff', '#175cd3'); }
 
 function badgeStyle(background, color) {
@@ -285,6 +457,52 @@ const heroCard = {
   padding: '34px 36px',
   boxShadow: '0 10px 30px rgba(16, 24, 40, 0.05)',
   marginBottom: '22px'
+};
+
+const createCard = {
+  background: '#ffffff',
+  border: '1px solid #eee7da',
+  borderRadius: '22px',
+  padding: '26px 28px',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
+  marginBottom: '18px'
+};
+
+const createForm = {
+  marginTop: '18px',
+  display: 'grid',
+  gap: '18px'
+};
+
+const formGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: '16px'
+};
+
+const singleFieldWrap = {
+  display: 'grid',
+  gap: '8px'
+};
+
+const singleFieldWrapWide = {
+  display: 'grid',
+  gap: '8px',
+  gridColumn: 'span 2'
+};
+
+const singleFieldWrapFull = {
+  display: 'grid',
+  gap: '8px',
+  gridColumn: '1 / -1'
+};
+
+const createFooter = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '20px',
+  flexWrap: 'wrap'
 };
 
 const filterCard = {
@@ -474,11 +692,6 @@ const filterGrid = {
   gap: '16px'
 };
 
-const singleFieldWrap = {
-  display: 'grid',
-  gap: '8px'
-};
-
 const labelStyle = {
   fontSize: '14px',
   fontWeight: '700',
@@ -496,6 +709,20 @@ const inputStyle = {
   boxSizing: 'border-box'
 };
 
+const textareaStyle = {
+  width: '100%',
+  minHeight: '120px',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #d0d5dd',
+  fontSize: '14px',
+  background: '#fff',
+  color: '#101828',
+  resize: 'vertical',
+  boxSizing: 'border-box',
+  lineHeight: 1.6
+};
+
 const secondaryButton = {
   padding: '11px 14px',
   background: '#ffffff',
@@ -505,6 +732,25 @@ const secondaryButton = {
   fontWeight: '600',
   fontSize: '14px',
   cursor: 'pointer'
+};
+
+const submitButton = {
+  padding: '16px 22px',
+  borderRadius: '14px',
+  border: 'none',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: '15px',
+  cursor: 'pointer',
+  boxShadow: '0 8px 18px rgba(140, 107, 67, 0.18)'
+};
+
+const footerHint = {
+  fontSize: '14px',
+  lineHeight: 1.7,
+  color: '#667085',
+  maxWidth: '760px'
 };
 
 const infoBox = {
@@ -532,4 +778,3 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
-
