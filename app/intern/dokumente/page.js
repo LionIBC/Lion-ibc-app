@@ -80,8 +80,8 @@ export default function InternDokumentePage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Dokumente</h1>
           <p style={subtitle}>
-            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Kategorien
-            und Bearbeitungsstatus können bei Bedarf angepasst werden.
+            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Dokumente
+            können geöffnet, heruntergeladen und intern weiter bearbeitet werden.
           </p>
         </section>
 
@@ -154,6 +154,20 @@ export default function InternDokumentePage() {
                 <div style={metaBox}>
                   <div><strong>Gespeicherter Name:</strong> {doc.stored_name}</div>
                   <div><strong>Pfad:</strong> {doc.file_path}</div>
+                </div>
+
+                <div style={actionRow}>
+                  {doc.signed_url ? (
+                    <a href={doc.signed_url} target="_blank" rel="noreferrer" style={openButton}>
+                      Öffnen
+                    </a>
+                  ) : null}
+
+                  {doc.download_url ? (
+                    <a href={doc.download_url} target="_blank" rel="noreferrer" style={downloadButton}>
+                      Download
+                    </a>
+                  ) : null}
                 </div>
               </section>
             ))}
@@ -346,6 +360,40 @@ const metaBox = {
   color: '#344054'
 };
 
+const actionRow = {
+  marginTop: '18px',
+  display: 'flex',
+  gap: '10px',
+  flexWrap: 'wrap'
+};
+
+const openButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: '700',
+  fontSize: '14px',
+  textDecoration: 'none'
+};
+
+const downloadButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#ffffff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  fontWeight: '700',
+  fontSize: '14px',
+  textDecoration: 'none'
+};
+
 const infoBox = {
   padding: '14px 16px',
   borderRadius: '14px',
@@ -371,5 +419,6 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
 
 
