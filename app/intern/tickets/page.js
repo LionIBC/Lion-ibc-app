@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 const boardColumns = [
@@ -10,16 +11,6 @@ const boardColumns = [
   { key: 'wartet_intern', label: 'Wartet intern' },
   { key: 'erledigt', label: 'Erledigt' } ];
 
-const internalStatusOptions = [
-  { value: 'neu', label: 'Neu' },
-  { value: 'zugewiesen', label: 'Zugewiesen' },
-  { value: 'in_bearbeitung', label: 'In Bearbeitung' },
-  { value: 'wartet_auf_kunde', label: 'Wartet auf Kunde' },
-  { value: 'wartet_intern', label: 'Wartet intern' },
-  { value: 'erledigt', label: 'Erledigt' } ];
-
-const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch'];
-
 export default function InternTicketsBoardPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,8 +19,6 @@ export default function InternTicketsBoardPage() {
   const [kundennummerFilter, setKundennummerFilter] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [selectedTicket, setSelectedTicket] = useState(null);
-  const [savingTicket, setSavingTicket] = useState(false);
 
   useEffect(() => {
     loadTickets();
@@ -55,64 +44,6 @@ export default function InternTicketsBoardPage() {
       });
     } finally {
       setLoading(false);
-    }
-  }
-
-  function openTicket(ticket) {
-    setSelectedTicket({
-      ...ticket
-    });
-  }
-
-  function updateSelectedTicket(key, value) {
-    setSelectedTicket((prev) => ({
-      ...prev,
-      [key]: value
-    }));
-  }
-
-  async function saveSelectedTicket() {
-    if (!selectedTicket?.id) return;
-
-    try {
-      setSavingTicket(true);
-      setStatusBox(null);
-
-      const res = await fetch(`/api/tickets/${selectedTicket.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: selectedTicket.title,
-          description: selectedTicket.description,
-          category: selectedTicket.category,
-          priority: selectedTicket.priority,
-          internal_status: selectedTicket.internal_status,
-          customer_status: selectedTicket.customer_status,
-          assigned_to: selectedTicket.assigned_to,
-          due_date: selectedTicket.due_date
-        })
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json?.message || 'Ticket konnte nicht gespeichert werden.');
-      }
-
-      setStatusBox({
-        type: 'success',
-        message: 'Ticket wurde aktualisiert.'
-      });
-
-      setSelectedTicket(json.data || selectedTicket);
-      await loadTickets();
-    } catch (error) {
-      setStatusBox({
-        type: 'error',
-        message: error.message || 'Ticket konnte nicht gespeichert werden.'
-      });
-    } finally {
-      setSavingTicket(false);
     }
   }
 
@@ -174,8 +105,8 @@ export default function InternTicketsBoardPage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Tickets</h1>
           <p style={subtitle}>
-            Interne Tafelansicht für alle Tickets. Hier sehen Sie Vorgänge nach
-            Bearbeitungsstufe, können Tickets öffnen, zuweisen und den Status ändern.
+            Interne Tafelansicht für alle Tickets. Klicken Sie auf eine Karte, um die
+            vollständige Ticketansicht mit Nachrichten, Aufgaben und weiteren Details zu öffnen.
           </p>
         </section>
 
@@ -268,10 +199,9 @@ export default function InternTicketsBoardPage() {
                       <div style={emptyCard}>Keine Tickets</div>
                     ) : (
                       groupedTickets[column.key].map((ticket) => (
-                        <button
+                        <Link
                           key={ticket.id}
-                          type="button"
-                          onClick={() => openTicket(ticket)}
+                          href={`/intern/tickets/${ticket.id}`}
                           style={ticketCard}
                         >
                           <div style={ticketCardTop}>
@@ -289,7 +219,7 @@ export default function InternTicketsBoardPage() {
                           <div style={ticketMeta}>
                             Fällig: {ticket.due_date ? formatDate(ticket.due_date) : '—'}
                           </div>
-                        </button>
+                        </Link>
                       ))
                     )}
                   </div>
@@ -298,139 +228,6 @@ export default function InternTicketsBoardPage() {
             </div>
           </section>
         )}
-
-        {selectedTicket ? (
-          <section style={detailCard}>
-            <div style={detailHeader}>
-              <div>
-                <div style={detailTitle}>Ticket bearbeiten</div>
-                <div style={detailMeta}>
-                  {selectedTicket.ticket_number} · {selectedTicket.kundennummer || 'ohne Kundennummer'}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedTicket(null)}
-                style={secondaryButton}
-              >
-                Schließen
-              </button>
-            </div>
-
-            <div style={detailGrid}>
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Überschrift</label>
-                <input
-                  type="text"
-                  value={selectedTicket.title || ''}
-                  onChange={(e) => updateSelectedTicket('title', e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Kategorie</label>
-                <input
-                  type="text"
-                  value={selectedTicket.category || ''}
-                  onChange={(e) => updateSelectedTicket('category', e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Priorität</label>
-                <select
-                  value={selectedTicket.priority || 'normal'}
-                  onChange={(e) => updateSelectedTicket('priority', e.target.value)}
-                  style={inputStyle}
-                >
-                  {priorityOptions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Zuständig</label>
-                <input
-                  type="text"
-                  value={selectedTicket.assigned_to || ''}
-                  onChange={(e) => updateSelectedTicket('assigned_to', e.target.value)}
-                  placeholder="z. B. Erjon"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Interner Status</label>
-                <select
-                  value={selectedTicket.internal_status || 'neu'}
-                  onChange={(e) => updateSelectedTicket('internal_status', e.target.value)}
-                  style={inputStyle}
-                >
-                  {internalStatusOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Kundenstatus</label>
-                <select
-                  value={selectedTicket.customer_status || 'neu'}
-                  onChange={(e) => updateSelectedTicket('customer_status', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="neu">Neu</option>
-                  <option value="in_bearbeitung">In Bearbeitung</option>
-                  <option value="rueckfrage">Rückfrage</option>
-                  <option value="erledigt">Erledigt</option>
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Fällig bis</label>
-                <input
-                  type="date"
-                  value={selectedTicket.due_date || ''}
-                  onChange={(e) => updateSelectedTicket('due_date', e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Beschreibung</label>
-              <textarea
-                value={selectedTicket.description || ''}
-                onChange={(e) => updateSelectedTicket('description', e.target.value)}
-                style={textareaStyle}
-              />
-            </div>
-
-            <div style={detailFooter}>
-              <div style={footerHint}>
-                Nachrichten, Anhänge und Checklisten bauen wir als nächsten Schritt auf die
-                Ticket-Detailseite auf.
-              </div>
-
-              <button
-                type="button"
-                onClick={saveSelectedTicket}
-                style={submitButton}
-                disabled={savingTicket}
-              >
-                {savingTicket ? 'Speichert…' : 'Ticket speichern'}
-              </button>
-            </div>
-          </section>
-        ) : null}
       </div>
     </main>
   );
@@ -562,13 +359,15 @@ const emptyCard = {
 };
 
 const ticketCard = {
+  display: 'block',
   width: '100%',
   textAlign: 'left',
   border: '1px solid #eceff3',
   borderRadius: '16px',
   padding: '14px',
   background: '#fcfcfd',
-  cursor: 'pointer'
+  cursor: 'pointer',
+  textDecoration: 'none'
 };
 
 const ticketCardTop = {
@@ -597,51 +396,6 @@ const ticketMeta = {
   fontSize: '13px',
   color: '#667085',
   lineHeight: 1.6
-};
-
-const detailCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '22px',
-  padding: '26px 28px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
-};
-
-const detailHeader = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  gap: '16px',
-  flexWrap: 'wrap',
-  marginBottom: '18px'
-};
-
-const detailTitle = {
-  fontSize: '24px',
-  fontWeight: '700',
-  color: '#101828'
-};
-
-const detailMeta = {
-  marginTop: '6px',
-  fontSize: '14px',
-  color: '#667085'
-};
-
-const detailGrid = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
-  gap: '16px',
-  marginBottom: '16px'
-};
-
-const detailFooter = {
-  marginTop: '18px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '20px',
-  flexWrap: 'wrap'
 };
 
 const badge = {
@@ -742,20 +496,6 @@ const inputStyle = {
   boxSizing: 'border-box'
 };
 
-const textareaStyle = {
-  width: '100%',
-  minHeight: '120px',
-  padding: '12px 14px',
-  borderRadius: '12px',
-  border: '1px solid #d0d5dd',
-  fontSize: '14px',
-  background: '#fff',
-  color: '#101828',
-  resize: 'vertical',
-  boxSizing: 'border-box',
-  lineHeight: 1.6
-};
-
 const secondaryButton = {
   padding: '11px 14px',
   background: '#ffffff',
@@ -765,25 +505,6 @@ const secondaryButton = {
   fontWeight: '600',
   fontSize: '14px',
   cursor: 'pointer'
-};
-
-const submitButton = {
-  padding: '16px 22px',
-  borderRadius: '14px',
-  border: 'none',
-  background: '#8c6b43',
-  color: '#fff',
-  fontWeight: '700',
-  fontSize: '15px',
-  cursor: 'pointer',
-  boxShadow: '0 8px 18px rgba(140, 107, 67, 0.18)'
-};
-
-const footerHint = {
-  fontSize: '14px',
-  lineHeight: 1.7,
-  color: '#667085',
-  maxWidth: '760px'
 };
 
 const infoBox = {
@@ -811,3 +532,4 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
