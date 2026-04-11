@@ -22,7 +22,7 @@ function categorySlug(category) {
     .replace(/[^\w]+/g, '-');
 }
 
-async function attachSignedUrls(rows) {
+async function addSignedUrls(rows) {
   const result = [];
 
   for (const row of rows || []) {
@@ -30,7 +30,7 @@ async function attachSignedUrls(rows) {
     let downloadUrl = null;
 
     if (row.file_path) {
-      const { data: signedData } = await supabase.storage
+      const { data: openData } = await supabase.storage
         .from('documents')
         .createSignedUrl(row.file_path, 60 * 60);
 
@@ -40,7 +40,7 @@ async function attachSignedUrls(rows) {
           download: row.original_name || true
         });
 
-      signedUrl = signedData?.signedUrl || null;
+      signedUrl = openData?.signedUrl || null;
       downloadUrl = downloadData?.signedUrl || null;
     }
 
@@ -74,7 +74,7 @@ export async function GET(req) {
       throw error;
     }
 
-    const rowsWithUrls = await attachSignedUrls(data || []);
+    const rowsWithUrls = await addSignedUrls(data || []);
 
     return Response.json({
       success: true,
@@ -169,7 +169,7 @@ export async function POST(req) {
       insertedRows.push(row);
     }
 
-    const rowsWithUrls = await attachSignedUrls(insertedRows);
+    const rowsWithUrls = await addSignedUrls(insertedRows);
 
     return Response.json({
       success: true,
