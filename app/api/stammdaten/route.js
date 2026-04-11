@@ -47,7 +47,8 @@ export async function POST(req) {
     const { data, error } = await supabase
       .from('stammdaten_requests')
       .insert([body])
-      .select();
+      .select()
+      .single();
 
     if (error) throw error;
 
