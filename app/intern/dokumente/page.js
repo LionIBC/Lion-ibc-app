@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const categories = [
+  'Alle',
   'Eingangsrechnung',
   'Ausgangsrechnung',
   'Bankauszug',
@@ -11,12 +12,16 @@ const categories = [
   'Sonstiges'
 ];
 
-const statuses = ['neu', 'in Prüfung', 'bearbeitet'];
+const statuses = ['Alle', 'neu', 'in Prüfung', 'bearbeitet'];
 
 export default function InternDokumentePage() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
+
+  const [searchKundennummer, setSearchKundennummer] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('Alle');
+  const [statusFilter, setStatusFilter] = useState('Alle');
 
   useEffect(() => {
     loadDocuments();
@@ -73,6 +78,36 @@ export default function InternDokumentePage() {
     }
   }
 
+  const filteredDocuments = useMemo(() => {
+    return documents.filter((doc) => {
+      const kundennummerMatch =
+        !searchKundennummer.trim() ||
+        String(doc.kundennummer || '')
+          .toLowerCase()
+          .includes(searchKundennummer.trim().toLowerCase());
+
+      const categoryMatch =
+        categoryFilter === 'Alle' || doc.category === categoryFilter;
+
+      const statusMatch =
+        statusFilter === 'Alle' || doc.status === statusFilter;
+
+      return kundennummerMatch && categoryMatch && statusMatch;
+    });
+  }, [documents, searchKundennummer, categoryFilter, statusFilter]);
+
+  const groupedByMandant = useMemo(() => {
+    const groups = {};
+
+    filteredDocuments.forEach((doc) => {
+      const key = doc.kundennummer || 'Ohne Kundennummer';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(doc);
+    });
+
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredDocuments]);
+
   return (
     <main style={pageWrap}>
       <div style={pageInner}>
@@ -80,94 +115,170 @@ export default function InternDokumentePage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Dokumente</h1>
           <p style={subtitle}>
-            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Dokumente
-            können geöffnet, heruntergeladen und intern weiter bearbeitet werden.
+            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Filtern
+            Sie nach Kundennummer, Kategorie und Bearbeitungsstatus, um gezielt in
+            der Kundenakte zu arbeiten.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
         {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
+        <section style={filterCard}>
+          <h2 style={sectionTitle}>Filter</h2>
+
+          <div style={filterGrid}>
+            <div style={singleFieldWrap}>
+              <label style={labelStyle}>Kundennummer</label>
+              <input
+                type="text"
+                placeholder="z. B. K-10023"
+                value={searchKundennummer}
+                onChange={(e) => setSearchKundennummer(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={singleFieldWrap}>
+              <label style={labelStyle}>Kategorie</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {categories.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={singleFieldWrap}>
+              <label style={labelStyle}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {statuses.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
         {loading ? (
           <div style={infoBox}>Dokumente werden geladen…</div>
-        ) : documents.length === 0 ? (
-          <div style={infoBox}>Keine Dokumente vorhanden.</div>
+        ) : filteredDocuments.length === 0 ? (
+          <div style={infoBox}>Keine Dokumente für die aktuelle Auswahl vorhanden.</div>
         ) : (
           <div style={requestList}>
-            {documents.map((doc) => (
-              <section key={doc.id} style={sectionCard}>
-                <div style={docHeader}>
+            {groupedByMandant.map(([kundennummer, docs]) => (
+              <section key={kundennummer} style={mandantCard}>
+                <div style={mandantHeader}>
                   <div>
-                    <div style={requestTitle}>{doc.original_name}</div>
-                    <div style={requestMeta}>
-                      Kundennummer: {doc.kundennummer}
+                    <div style={mandantTitle}>{kundennummer}</div>
+                    <div style={mandantMeta}>{docs.length} Dokument(e)</div>
+                  </div>
+                </div>
+
+                <div style={docsGrid}>
+                  {docs.map((doc) => (
+                    <div key={doc.id} style={docCard}>
+                      <div style={docHeader}>
+                        <div>
+                          <div style={requestTitle}>{doc.original_name}</div>
+                          <div style={requestMeta}>
+                            Hochgeladen: {formatDateTime(doc.created_at)}
+                          </div>
+                        </div>
+
+                        <div style={statusBadge(doc.status)}>
+                          {doc.status}
+                        </div>
+                      </div>
+
+                      <div style={grid2}>
+                        <div style={singleFieldWrap}>
+                          <label style={labelStyle}>Kategorie</label>
+                          <select
+                            value={doc.category}
+                            onChange={(e) =>
+                              updateDocument(doc.id, e.target.value, doc.status)
+                            }
+                            style={inputStyle}
+                          >
+                            {categories
+                              .filter((item) => item !== 'Alle')
+                              .map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div style={singleFieldWrap}>
+                          <label style={labelStyle}>Status</label>
+                          <select
+                            value={doc.status}
+                            onChange={(e) =>
+                              updateDocument(doc.id, doc.category, e.target.value)
+                            }
+                            style={inputStyle}
+                          >
+                            {statuses
+                              .filter((item) => item !== 'Alle')
+                              .map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {doc.description ? (
+                        <div style={reasonCard}>
+                          <div style={reasonTitle}>Beschreibung</div>
+                          <div style={reasonText}>{doc.description}</div>
+                        </div>
+                      ) : null}
+
+                      <div style={metaBox}>
+                        <div><strong>Gespeicherter Name:</strong> {doc.stored_name}</div>
+                        <div><strong>Pfad:</strong> {doc.file_path}</div>
+                      </div>
+
+                      <div style={actionRow}>
+                        {doc.signed_url ? (
+                          <a
+                            href={doc.signed_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={openButton}
+                          >
+                            Öffnen
+                          </a>
+                        ) : null}
+
+                        {doc.download_url ? (
+                          <a
+                            href={doc.download_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={downloadButton}
+                          >
+                            Download
+                          </a>
+                        ) : null}
+                      </div>
                     </div>
-                    <div style={requestMeta}>
-                      Hochgeladen: {formatDateTime(doc.created_at)}
-                    </div>
-                  </div>
-
-                  <div style={statusBadge(doc.status)}>
-                    {doc.status}
-                  </div>
-                </div>
-
-                <div style={grid2}>
-                  <div style={singleFieldWrap}>
-                    <label style={labelStyle}>Kategorie</label>
-                    <select
-                      value={doc.category}
-                      onChange={(e) => updateDocument(doc.id, e.target.value, doc.status)}
-                      style={inputStyle}
-                    >
-                      {categories.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={singleFieldWrap}>
-                    <label style={labelStyle}>Status</label>
-                    <select
-                      value={doc.status}
-                      onChange={(e) => updateDocument(doc.id, doc.category, e.target.value)}
-                      style={inputStyle}
-                    >
-                      {statuses.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {doc.description ? (
-                  <div style={reasonCard}>
-                    <div style={reasonTitle}>Beschreibung</div>
-                    <div style={reasonText}>{doc.description}</div>
-                  </div>
-                ) : null}
-
-                <div style={metaBox}>
-                  <div><strong>Gespeicherter Name:</strong> {doc.stored_name}</div>
-                  <div><strong>Pfad:</strong> {doc.file_path}</div>
-                </div>
-
-                <div style={actionRow}>
-                  {doc.signed_url ? (
-                    <a href={doc.signed_url} target="_blank" rel="noreferrer" style={openButton}>
-                      Öffnen
-                    </a>
-                  ) : null}
-
-                  {doc.download_url ? (
-                    <a href={doc.download_url} target="_blank" rel="noreferrer" style={downloadButton}>
-                      Download
-                    </a>
-                  ) : null}
+                  ))}
                 </div>
               </section>
             ))}
@@ -238,6 +349,15 @@ const heroCard = {
   marginBottom: '22px'
 };
 
+const filterCard = {
+  background: '#ffffff',
+  border: '1px solid #eee7da',
+  borderRadius: '22px',
+  padding: '26px 28px',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
+  marginBottom: '18px'
+};
+
 const badge = {
   display: 'inline-block',
   padding: '8px 14px',
@@ -265,17 +385,62 @@ const subtitle = {
   margin: 0
 };
 
+const sectionTitle = {
+  fontSize: '24px',
+  fontWeight: '700',
+  color: '#101828',
+  margin: '0 0 18px'
+};
+
+const filterGrid = {
+  display: 'grid',
+  gridTemplateColumns: '1.2fr 1fr 1fr',
+  gap: '16px'
+};
+
 const requestList = {
   display: 'grid',
   gap: '18px'
 };
 
-const sectionCard = {
+const mandantCard = {
   background: '#ffffff',
   border: '1px solid #eee7da',
   borderRadius: '22px',
-  padding: '26px 28px',
+  padding: '24px 26px',
   boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const mandantHeader = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '16px',
+  marginBottom: '18px'
+};
+
+const mandantTitle = {
+  fontSize: '22px',
+  fontWeight: '700',
+  color: '#101828'
+};
+
+const mandantMeta = {
+  marginTop: '6px',
+  fontSize: '14px',
+  color: '#667085'
+};
+
+const docsGrid = {
+  display: 'grid',
+  gap: '16px'
+};
+
+const docCard = {
+  background: '#fcfcfd',
+  border: '1px solid #eceff3',
+  borderRadius: '18px',
+  padding: '20px'
 };
 
 const docHeader = {
@@ -288,7 +453,7 @@ const docHeader = {
 };
 
 const requestTitle = {
-  fontSize: '20px',
+  fontSize: '18px',
   fontWeight: '700',
   color: '#101828'
 };
@@ -353,7 +518,7 @@ const metaBox = {
   marginTop: '16px',
   padding: '14px 16px',
   borderRadius: '14px',
-  background: '#fcfcfd',
+  background: '#ffffff',
   border: '1px solid #eceff3',
   fontSize: '14px',
   lineHeight: 1.8,
@@ -419,6 +584,3 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
-
-
-
