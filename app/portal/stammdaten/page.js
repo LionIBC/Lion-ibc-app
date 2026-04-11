@@ -23,7 +23,11 @@ const currentData = {
   inhaber: '',
 
   ansprechpartner: [
-    { name: 'Max Mustermann', email: 'max@muster.de', telefon: '+49 221 123456' }
+    {
+      name: 'Max Mustermann',
+      email: 'max@muster.de',
+      telefon: '+49 221 123456'
+    }
   ]
 };
 
@@ -51,20 +55,26 @@ const emptyChangeState = {
 export default function StammdatenPage() {
   const [changes, setChanges] = useState(emptyChangeState);
   const [status, setStatus] = useState(null);
+  const [sending, setSending] = useState(false);
 
   function update(key, value) {
     setChanges((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    setStatus(null);
 
-    const hasAnyChange = Object.entries(changes).some(([key, value]) => {
-      if (key === 'begruendung' || key === 'bestaetigt') return false;
-      return String(value).trim() !== '';
+    const changesFiltered = {};
+
+    Object.entries(changes).forEach(([key, value]) => {
+      if (key === 'begruendung' || key === 'bestaetigt') return;
+      if (String(value).trim() !== '') {
+        changesFiltered[key] = value;
+      }
     });
 
-    if (!hasAnyChange) {
+    if (Object.keys(changesFiltered).length === 0) {
       setStatus({
         type: 'error',
         message: 'Bitte tragen Sie mindestens eine gewünschte Änderung ein.'
@@ -80,14 +90,46 @@ export default function StammdatenPage() {
       return;
     }
 
-    setStatus({
-      type: 'success',
-      message:
-        'Ihre Stammdatenanpassung wurde eingereicht und wird intern geprüft. Freigegebene Änderungen werden anschließend übernommen.'
-    });
+    try {
+      setSending(true);
 
-    setChanges(emptyChangeState);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      const res = await fetch('/api/stammdaten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kundennummer: currentData.kundennummer,
+          firma: currentData.firmenname,
+          changes: buildStructuredChanges(changesFiltered),
+          begruendung: changes.begruendung
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus({
+          type: 'error',
+          message: data.message || 'Fehler beim Einreichen der Stammdatenanpassung.'
+        });
+        return;
+      }
+
+      setStatus({
+        type: 'success',
+        message:
+          'Ihre Stammdatenanpassung wurde eingereicht und wird intern geprüft.'
+      });
+
+      setChanges(emptyChangeState);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: 'Fehler beim Einreichen der Stammdatenanpassung.'
+      });
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -97,9 +139,8 @@ export default function StammdatenPage() {
           <div className="page-badge">Kundenportal</div>
           <h1 className="page-title">Stammdaten</h1>
           <p className="page-subtitle">
-            Hier sehen Sie Ihre aktuell hinterlegten Stammdaten. Änderungswünsche
-            können direkt eingetragen und anschließend zur internen Prüfung
-            eingereicht werden.
+            Hier sehen Sie Ihre aktuell hinterlegten Stammdaten. Änderungen können
+            direkt eingetragen und anschließend zur internen Prüfung eingereicht werden.
           </p>
 
           <div className="info-strip">
@@ -267,8 +308,8 @@ export default function StammdatenPage() {
                 Freigabe unverändert bestehen.
               </div>
 
-              <button type="submit" className="btn-primary">
-                Stammdaten anpassen
+              <button type="submit" className="btn-primary" disabled={sending}>
+                {sending ? 'Wird eingereicht…' : 'Stammdaten anpassen'}
               </button>
             </div>
           </section>
@@ -347,3 +388,54 @@ function formatDate(value) {
   return d.toLocaleDateString('de-DE');
 }
 
+function buildStructuredChanges(changesFiltered) {
+  const result = {};
+
+  Object.entries(changesFiltered).forEach(([key, value]) => {
+    result[key] = {
+      old: getOldValue(key),
+      new: value
+    };
+  });
+
+  return result;
+}
+
+function getOldValue(key) {
+  switch (key) {
+    case 'firmenname':
+      return currentData.firmenname;
+    case 'rechtsform':
+      return currentData.rechtsform;
+    case 'gruendungsdatum':
+      return formatDate(currentData.gruendungsdatum);
+    case 'unternehmenssitz':
+      return currentData.unternehmenssitz;
+    case 'hrbNummer':
+      return currentData.hrbNummer;
+    case 'amtsgericht':
+      return currentData.amtsgericht;
+    case 'steuernummern':
+      return currentData.steuernummern.join(', ');
+    case 'ustId':
+      return currentData.ustId;
+    case 'wirtschaftsId':
+      return currentData.wirtschaftsId;
+    case 'ustMeldung':
+      return currentData.ustMeldung;
+    case 'lohnsteuerMeldung':
+      return currentData.lohnsteuerMeldung;
+    case 'dauerfristverlaengerung':
+      return currentData.dauerfristverlaengerung;
+    case 'gesellschafter':
+      return formatList(currentData.gesellschafter);
+    case 'geschaeftsfuehrer':
+      return formatList(currentData.geschaeftsfuehrer);
+    case 'inhaber':
+      return currentData.inhaber || 'Nicht zutreffend';
+    case 'ansprechpartner':
+      return formatContacts(currentData.ansprechpartner);
+    default:
+      return '';
+  }
+}
