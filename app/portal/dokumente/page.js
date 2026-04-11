@@ -110,7 +110,7 @@ export default function PortalDokumentePage() {
           <h1 style={title}>Dokumente</h1>
           <p style={subtitle}>
             Laden Sie hier Dokumente hoch und ordnen Sie diese direkt einer Kategorie zu.
-            Die interne Prüfung und spätere Bearbeitung erfolgt anschließend im System.
+            Bereits hochgeladene Dokumente können Sie später wieder öffnen oder herunterladen.
           </p>
 
           <div style={topInfoRow}>
@@ -167,8 +167,8 @@ export default function PortalDokumentePage() {
 
             <div style={footerBottom}>
               <div style={footerHint}>
-                Dokumente werden mandantenbezogen gespeichert und später intern geprüft,
-                kategorisiert und weiterverarbeitet.
+                Dokumente werden mandantenbezogen gespeichert und können später
+                intern geprüft und weiter bearbeitet werden.
               </div>
 
               <button type="submit" style={submitButton} disabled={uploading}>
@@ -192,6 +192,7 @@ export default function PortalDokumentePage() {
                 <div>Dateiname</div>
                 <div>Status</div>
                 <div>Datum</div>
+                <div>Aktionen</div>
               </div>
 
               {documents.map((doc) => (
@@ -200,6 +201,19 @@ export default function PortalDokumentePage() {
                   <div>{doc.original_name}</div>
                   <div>{doc.status}</div>
                   <div>{formatDateTime(doc.created_at)}</div>
+                  <div style={actionCell}>
+                    {doc.signed_url ? (
+                      <a href={doc.signed_url} target="_blank" rel="noreferrer" style={linkButton}>
+                        Öffnen
+                      </a>
+                    ) : null}
+
+                    {doc.download_url ? (
+                      <a href={doc.download_url} target="_blank" rel="noreferrer" style={secondaryLinkButton}>
+                        Download
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -392,7 +406,7 @@ const tableWrap = {
 
 const tableHeader = {
   display: 'grid',
-  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr',
+  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.4fr',
   gap: '14px',
   padding: '12px 14px',
   fontWeight: '700',
@@ -402,13 +416,47 @@ const tableHeader = {
 
 const tableRow = {
   display: 'grid',
-  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr',
+  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.4fr',
   gap: '14px',
   padding: '14px',
   border: '1px solid #eceff3',
   borderRadius: '14px',
   background: '#fcfcfd',
-  color: '#101828'
+  color: '#101828',
+  alignItems: 'center'
+};
+
+const actionCell = {
+  display: 'flex',
+  gap: '8px',
+  flexWrap: 'wrap'
+};
+
+const linkButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: '10px',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: '600',
+  fontSize: '13px',
+  textDecoration: 'none'
+};
+
+const secondaryLinkButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: '10px',
+  background: '#ffffff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  fontWeight: '600',
+  fontSize: '13px',
+  textDecoration: 'none'
 };
 
 const infoBox = {
