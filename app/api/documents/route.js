@@ -230,3 +230,62 @@ export async function PATCH(req) {
     );
   }
 }
+
+export async function DELETE(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return Response.json(
+        { success: false, message: 'Dokument-ID fehlt.' },
+        { status: 400 }
+      );
+    }
+
+    const { data: documentRow, error: loadError } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (loadError || !documentRow) {
+      return Response.json(
+        { success: false, message: 'Dokument wurde nicht gefunden.' },
+        { status: 404 }
+      );
+    }
+
+    if (documentRow.file_path) {
+      const { error: storageError } = await supabase.storage
+        .from('documents')
+        .remove([documentRow.file_path]);
+
+      if (storageError) {
+        throw storageError;
+      }
+    }
+
+    const { error: deleteError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    return Response.json({
+      success: true,
+      message: 'Dokument wurde gelöscht.'
+    });
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: error.message || 'Dokument konnte nicht gelöscht werden.'
+      },
+      { status: 500 }
+    );
+  }
+}
