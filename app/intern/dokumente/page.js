@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const categories = [
-  'Alle',
   'Eingangsrechnung',
   'Ausgangsrechnung',
   'Bankauszug',
@@ -12,16 +11,12 @@ const categories = [
   'Sonstiges'
 ];
 
-const statuses = ['Alle', 'neu', 'in Prüfung', 'bearbeitet'];
+const statuses = ['neu', 'in Prüfung', 'bearbeitet'];
 
 export default function InternDokumentePage() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
-
-  const [searchKundennummer, setSearchKundennummer] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('Alle');
-  const [statusFilter, setStatusFilter] = useState('Alle');
 
   useEffect(() => {
     loadDocuments();
@@ -78,35 +73,37 @@ export default function InternDokumentePage() {
     }
   }
 
-  const filteredDocuments = useMemo(() => {
-    return documents.filter((doc) => {
-      const kundennummerMatch =
-        !searchKundennummer.trim() ||
-        String(doc.kundennummer || '')
-          .toLowerCase()
-          .includes(searchKundennummer.trim().toLowerCase());
+  async function deleteDocument(id, fileName) {
+    const confirmed = window.confirm(
+      `Soll das Dokument "${fileName}" wirklich gelöscht werden?`
+    );
 
-      const categoryMatch =
-        categoryFilter === 'Alle' || doc.category === categoryFilter;
+    if (!confirmed) return;
 
-      const statusMatch =
-        statusFilter === 'Alle' || doc.status === statusFilter;
+    try {
+      const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
 
-      return kundennummerMatch && categoryMatch && statusMatch;
-    });
-  }, [documents, searchKundennummer, categoryFilter, statusFilter]);
+      const json = await res.json();
 
-  const groupedByMandant = useMemo(() => {
-    const groups = {};
+      if (!res.ok) {
+        throw new Error(json?.message || 'Dokument konnte nicht gelöscht werden.');
+      }
 
-    filteredDocuments.forEach((doc) => {
-      const key = doc.kundennummer || 'Ohne Kundennummer';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(doc);
-    });
+      setStatusBox({
+        type: 'success',
+        message: 'Dokument wurde gelöscht.'
+      });
 
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredDocuments]);
+      loadDocuments();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Dokument konnte nicht gelöscht werden.'
+      });
+    }
+  }
 
   return (
     <main style={pageWrap}>
@@ -115,170 +112,102 @@ export default function InternDokumentePage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Dokumente</h1>
           <p style={subtitle}>
-            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Filtern
-            Sie nach Kundennummer, Kategorie und Bearbeitungsstatus, um gezielt in
-            der Kundenakte zu arbeiten.
+            Hier sehen Sie alle hochgeladenen Dokumente mandantenbezogen. Dokumente
+            können geöffnet, heruntergeladen, bearbeitet und bei Bedarf intern gelöscht werden.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
         {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
-        <section style={filterCard}>
-          <h2 style={sectionTitle}>Filter</h2>
-
-          <div style={filterGrid}>
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Kundennummer</label>
-              <input
-                type="text"
-                placeholder="z. B. K-10023"
-                value={searchKundennummer}
-                onChange={(e) => setSearchKundennummer(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Kategorie</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {statuses.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </section>
-
         {loading ? (
           <div style={infoBox}>Dokumente werden geladen…</div>
-        ) : filteredDocuments.length === 0 ? (
-          <div style={infoBox}>Keine Dokumente für die aktuelle Auswahl vorhanden.</div>
+        ) : documents.length === 0 ? (
+          <div style={infoBox}>Keine Dokumente vorhanden.</div>
         ) : (
           <div style={requestList}>
-            {groupedByMandant.map(([kundennummer, docs]) => (
-              <section key={kundennummer} style={mandantCard}>
-                <div style={mandantHeader}>
+            {documents.map((doc) => (
+              <section key={doc.id} style={sectionCard}>
+                <div style={docHeader}>
                   <div>
-                    <div style={mandantTitle}>{kundennummer}</div>
-                    <div style={mandantMeta}>{docs.length} Dokument(e)</div>
+                    <div style={requestTitle}>{doc.original_name}</div>
+                    <div style={requestMeta}>
+                      Kundennummer: {doc.kundennummer}
+                    </div>
+                    <div style={requestMeta}>
+                      Hochgeladen: {formatDateTime(doc.created_at)}
+                    </div>
+                  </div>
+
+                  <div style={statusBadge(doc.status)}>
+                    {doc.status}
                   </div>
                 </div>
 
-                <div style={docsGrid}>
-                  {docs.map((doc) => (
-                    <div key={doc.id} style={docCard}>
-                      <div style={docHeader}>
-                        <div>
-                          <div style={requestTitle}>{doc.original_name}</div>
-                          <div style={requestMeta}>
-                            Hochgeladen: {formatDateTime(doc.created_at)}
-                          </div>
-                        </div>
+                <div style={grid2}>
+                  <div style={singleFieldWrap}>
+                    <label style={labelStyle}>Kategorie</label>
+                    <select
+                      value={doc.category}
+                      onChange={(e) => updateDocument(doc.id, e.target.value, doc.status)}
+                      style={inputStyle}
+                    >
+                      {categories.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                        <div style={statusBadge(doc.status)}>
-                          {doc.status}
-                        </div>
-                      </div>
+                  <div style={singleFieldWrap}>
+                    <label style={labelStyle}>Status</label>
+                    <select
+                      value={doc.status}
+                      onChange={(e) => updateDocument(doc.id, doc.category, e.target.value)}
+                      style={inputStyle}
+                    >
+                      {statuses.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-                      <div style={grid2}>
-                        <div style={singleFieldWrap}>
-                          <label style={labelStyle}>Kategorie</label>
-                          <select
-                            value={doc.category}
-                            onChange={(e) =>
-                              updateDocument(doc.id, e.target.value, doc.status)
-                            }
-                            style={inputStyle}
-                          >
-                            {categories
-                              .filter((item) => item !== 'Alle')
-                              .map((item) => (
-                                <option key={item} value={item}>
-                                  {item}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
+                {doc.description ? (
+                  <div style={reasonCard}>
+                    <div style={reasonTitle}>Beschreibung</div>
+                    <div style={reasonText}>{doc.description}</div>
+                  </div>
+                ) : null}
 
-                        <div style={singleFieldWrap}>
-                          <label style={labelStyle}>Status</label>
-                          <select
-                            value={doc.status}
-                            onChange={(e) =>
-                              updateDocument(doc.id, doc.category, e.target.value)
-                            }
-                            style={inputStyle}
-                          >
-                            {statuses
-                              .filter((item) => item !== 'Alle')
-                              .map((item) => (
-                                <option key={item} value={item}>
-                                  {item}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
+                <div style={metaBox}>
+                  <div><strong>Gespeicherter Name:</strong> {doc.stored_name}</div>
+                  <div><strong>Pfad:</strong> {doc.file_path}</div>
+                </div>
 
-                      {doc.description ? (
-                        <div style={reasonCard}>
-                          <div style={reasonTitle}>Beschreibung</div>
-                          <div style={reasonText}>{doc.description}</div>
-                        </div>
-                      ) : null}
+                <div style={actionRow}>
+                  {doc.signed_url ? (
+                    <a href={doc.signed_url} target="_blank" rel="noreferrer" style={openButton}>
+                      Öffnen
+                    </a>
+                  ) : null}
 
-                      <div style={metaBox}>
-                        <div><strong>Gespeicherter Name:</strong> {doc.stored_name}</div>
-                        <div><strong>Pfad:</strong> {doc.file_path}</div>
-                      </div>
+                  {doc.download_url ? (
+                    <a href={doc.download_url} target="_blank" rel="noreferrer" style={downloadButton}>
+                      Download
+                    </a>
+                  ) : null}
 
-                      <div style={actionRow}>
-                        {doc.signed_url ? (
-                          <a
-                            href={doc.signed_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={openButton}
-                          >
-                            Öffnen
-                          </a>
-                        ) : null}
-
-                        {doc.download_url ? (
-                          <a
-                            href={doc.download_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={downloadButton}
-                          >
-                            Download
-                          </a>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+                  <button
+                    type="button"
+                    style={deleteButton}
+                    onClick={() => deleteDocument(doc.id, doc.original_name)}
+                  >
+                    Löschen
+                  </button>
                 </div>
               </section>
             ))}
@@ -349,15 +278,6 @@ const heroCard = {
   marginBottom: '22px'
 };
 
-const filterCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '22px',
-  padding: '26px 28px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
-  marginBottom: '18px'
-};
-
 const badge = {
   display: 'inline-block',
   padding: '8px 14px',
@@ -385,62 +305,17 @@ const subtitle = {
   margin: 0
 };
 
-const sectionTitle = {
-  fontSize: '24px',
-  fontWeight: '700',
-  color: '#101828',
-  margin: '0 0 18px'
-};
-
-const filterGrid = {
-  display: 'grid',
-  gridTemplateColumns: '1.2fr 1fr 1fr',
-  gap: '16px'
-};
-
 const requestList = {
   display: 'grid',
   gap: '18px'
 };
 
-const mandantCard = {
+const sectionCard = {
   background: '#ffffff',
   border: '1px solid #eee7da',
   borderRadius: '22px',
-  padding: '24px 26px',
+  padding: '26px 28px',
   boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
-};
-
-const mandantHeader = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '16px',
-  marginBottom: '18px'
-};
-
-const mandantTitle = {
-  fontSize: '22px',
-  fontWeight: '700',
-  color: '#101828'
-};
-
-const mandantMeta = {
-  marginTop: '6px',
-  fontSize: '14px',
-  color: '#667085'
-};
-
-const docsGrid = {
-  display: 'grid',
-  gap: '16px'
-};
-
-const docCard = {
-  background: '#fcfcfd',
-  border: '1px solid #eceff3',
-  borderRadius: '18px',
-  padding: '20px'
 };
 
 const docHeader = {
@@ -453,7 +328,7 @@ const docHeader = {
 };
 
 const requestTitle = {
-  fontSize: '18px',
+  fontSize: '20px',
   fontWeight: '700',
   color: '#101828'
 };
@@ -518,7 +393,7 @@ const metaBox = {
   marginTop: '16px',
   padding: '14px 16px',
   borderRadius: '14px',
-  background: '#ffffff',
+  background: '#fcfcfd',
   border: '1px solid #eceff3',
   fontSize: '14px',
   lineHeight: 1.8,
@@ -542,7 +417,8 @@ const openButton = {
   color: '#fff',
   fontWeight: '700',
   fontSize: '14px',
-  textDecoration: 'none'
+  textDecoration: 'none',
+  border: 'none'
 };
 
 const downloadButton = {
@@ -557,6 +433,20 @@ const downloadButton = {
   fontWeight: '700',
   fontSize: '14px',
   textDecoration: 'none'
+};
+
+const deleteButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  background: '#fff',
+  color: '#b42318',
+  border: '1px solid #fecdca',
+  fontWeight: '700',
+  fontSize: '14px',
+  cursor: 'pointer'
 };
 
 const infoBox = {
@@ -584,3 +474,4 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
