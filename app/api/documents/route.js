@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 function sanitizeFileName(name) {
-  return name
+  return String(name || '')
     .normalize('NFKD')
     .replace(/[^\w.\-]+/g, '_')
     .replace(/_+/g, '_');
@@ -20,6 +20,38 @@ function categorySlug(category) {
     .replace(/[ü]/g, 'ue')
     .replace(/[ß]/g, 'ss')
     .replace(/[^\w]+/g, '-');
+}
+
+async function attachSignedUrls(rows) {
+  const result = [];
+
+  for (const row of rows || []) {
+    let signedUrl = null;
+    let downloadUrl = null;
+
+    if (row.file_path) {
+      const { data: signedData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60);
+
+      const { data: downloadData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60, {
+          download: row.original_name || true
+        });
+
+      signedUrl = signedData?.signedUrl || null;
+      downloadUrl = downloadData?.signedUrl || null;
+    }
+
+    result.push({
+      ...row,
+      signed_url: signedUrl,
+      download_url: downloadUrl
+    });
+  }
+
+  return result;
 }
 
 export async function GET(req) {
@@ -42,9 +74,11 @@ export async function GET(req) {
       throw error;
     }
 
+    const rowsWithUrls = await attachSignedUrls(data || []);
+
     return Response.json({
       success: true,
-      data: data || []
+      data: rowsWithUrls
     });
   } catch (error) {
     return Response.json(
@@ -93,7 +127,6 @@ export async function POST(req) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const cleanOriginalName = sanitizeFileName(file.name);
       const storedName = `${kundennummer}_${year}-${String(month).padStart(2, '0')}_${categorySlug(category)}_${Date.now()}_${cleanOriginalName}`;
       const filePath = `${kundennummer}/${storedName}`;
@@ -123,7 +156,8 @@ export async function POST(req) {
           uploaded_by: uploadedBy,
           status: 'neu',
           year,
-          month
+          month,
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -135,10 +169,12 @@ export async function POST(req) {
       insertedRows.push(row);
     }
 
+    const rowsWithUrls = await attachSignedUrls(insertedRows);
+
     return Response.json({
       success: true,
       message: 'Dokument(e) erfolgreich gespeichert.',
-      data: insertedRows
+      data: rowsWithUrls
     });
   } catch (error) {
     return Response.json(
@@ -154,7 +190,7 @@ export async function POST(req) {
 export async function PATCH(req) {
   try {
     const body = await req.json();
-    const { id, category, status } = body;
+    const { id, category, status, description } = body;
 
     if (!id) {
       return Response.json(
@@ -163,10 +199,13 @@ export async function PATCH(req) {
       );
     }
 
-    const updatePayload = {};
+    const updatePayload = {
+      updated_at: new Date().toISOString()
+    };
+
     if (category) updatePayload.category = category;
     if (status) updatePayload.status = status;
-    updatePayload.updated_at = new Date().toISOString();
+    if (typeof description === 'string') updatePayload.description = description;
 
     const { error } = await supabase
       .from('documents')
@@ -191,4 +230,3 @@ export async function PATCH(req) {
     );
   }
 }
-
