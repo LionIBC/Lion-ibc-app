@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react'; import { useParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react'; import { useParams } from 'next/navigation';
 
 function formatDate(value) {
   if (!value) return '';
@@ -51,6 +51,7 @@ function getStatusColor(status) {
 
 export default function PortalTicketDetailPage() {
   const { id } = useParams();
+  const fileInputRef = useRef(null);
 
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -58,6 +59,8 @@ export default function PortalTicketDetailPage() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const [statusBox, setStatusBox] = useState(null);
 
   useEffect(() => {
@@ -129,6 +132,74 @@ export default function PortalTicketDetailPage() {
     }
   }
 
+  async function uploadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
+    try {
+      setUploadingFiles(true);
+
+      const formData = new FormData();
+      formData.append('ticket_id', id);
+
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const res = await fetch('/api/portal/ticket-attachments', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'Dateien konnten nicht hochgeladen werden.');
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei(en) wurden hochgeladen.'
+      });
+
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Dateien konnten nicht hochgeladen werden.'
+      });
+    } finally {
+      setUploadingFiles(false);
+      setIsDragActive(false);
+    }
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+
+    if (event.dataTransfer?.files?.length) {
+      uploadFiles(event.dataTransfer.files);
+    }
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+  }
+
   if (loading) {
     return <main style={wrap}><div style={container}>Lade Ticket…</div></main>;
   }
@@ -185,6 +256,39 @@ export default function PortalTicketDetailPage() {
 
         <section style={card}>
           <h2 style={sectionTitle}>Dateien</h2>
+
+          <div
+            style={{
+              ...dropzone,
+              ...(isDragActive ? dropzoneActive : {})
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <div style={dropzoneTitle}>Weitere Dateien hochladen</div>
+            <div style={dropzoneText}>
+              Dateien hier hineinziehen oder per Klick auswählen.
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => uploadFiles(e.target.files)}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={secondaryButton}
+              disabled={uploadingFiles}
+            >
+              {uploadingFiles ? 'Lädt hoch…' : 'Dateien auswählen'}
+            </button>
+          </div>
 
           {attachments.length === 0 ? (
             <div style={emptyBox}>Aktuell sind keine Dateien freigegeben.</div>
@@ -360,6 +464,35 @@ const emptyBox = {
   color: '#667085'
 };
 
+const dropzone = {
+  border: '2px dashed #d0d5dd',
+  borderRadius: 18,
+  padding: '26px 20px',
+  background: '#fcfcfd',
+  display: 'grid',
+  gap: 10,
+  justifyItems: 'center',
+  textAlign: 'center',
+  transition: 'all 0.15s ease',
+  marginBottom: 16
+};
+
+const dropzoneActive = {
+  border: '2px dashed #8c6b43',
+  background: '#faf8f3'
+};
+
+const dropzoneTitle = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const dropzoneText = {
+  fontSize: 14,
+  color: '#667085'
+};
+
 const attachmentGrid = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -462,6 +595,16 @@ const saveButton = {
   cursor: 'pointer'
 };
 
+const secondaryButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
 const errorBox = {
   padding: '14px 16px',
   borderRadius: '14px',
@@ -477,4 +620,3 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
-
