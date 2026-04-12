@@ -497,13 +497,22 @@ export default function InternTicketsBoardPage() {
                             </span>
                           </div>
 
-                          <div style={ticketTitle}>{ticket.title}</div>
-                          <div style={ticketMeta}>Mandant: {ticket.kundennummer || '—'}</div>
-                          <div style={ticketMeta}>Kategorie: {ticket.category || '—'}</div>
-                          <div style={ticketMeta}>Hauptzuständig: {ticket.assigned_to || '—'}</div>
-                          <div style={ticketMeta}>
-                            Beteiligte: {(ticket.assigned_users || []).join(', ') || '—'}
-                          </div>
+                         <div style={{
+  padding: 12,
+  borderRadius: 12,
+  background: '#fff',
+  border: '1px solid #eee',
+  cursor: 'pointer'
+}}>
+  <div style={{ fontWeight: 700 }}>
+    {ticket.customer_name || ticket.kundennummer}
+  </div>
+
+  <div style={{ fontSize: 14, color: '#666' }}>
+    {ticket.title}
+  </div>
+</div>
+
                           <div style={ticketMeta}>
                             Fällig: {ticket.due_date ? formatDate(ticket.due_date) : '—'}
                           </div>
