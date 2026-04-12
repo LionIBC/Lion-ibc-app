@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react'; import { useParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react'; import { useParams } from 'next/navigation';
 
 const employeeOptions = [
   'Erjon Godeni',
@@ -15,13 +15,18 @@ const employeeOptions = [
 
 export default function TicketDetailPage() {
   const { id } = useParams();
+  const fileInputRef = useRef(null);
 
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
   const [savingTicket, setSavingTicket] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const [newMessage, setNewMessage] = useState('');
   const [newTask, setNewTask] = useState('');
@@ -29,8 +34,10 @@ export default function TicketDetailPage() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   useEffect(() => {
-    loadTicket();
-  }, []);
+    if (id) {
+      loadTicket();
+    }
+  }, [id]);
 
   async function loadTicket() {
     try {
@@ -45,12 +52,14 @@ export default function TicketDetailPage() {
 
       setTicket(data.data.ticket);
       setMessages(data.data.messages || []);
+      setAttachments(data.data.attachments || []);
       setTasks(
         (data.data.tasks || []).map((task) => ({
           ...task,
           isEditing: false
         }))
       );
+
       setStatusBox(null);
     } catch (error) {
       setStatusBox({
@@ -321,6 +330,7 @@ export default function TicketDetailPage() {
     const index = sorted.findIndex((item) => item.id === task.id);
 
     if (index === -1) return;
+
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= sorted.length) return;
 
@@ -356,6 +366,107 @@ export default function TicketDetailPage() {
         message: error.message || 'Reihenfolge konnte nicht geändert werden.'
       });
     }
+  }
+
+  async function uploadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
+    try {
+      setUploadingFiles(true);
+
+      const formData = new FormData();
+      formData.append('ticket_id', id);
+      formData.append('uploaded_by', 'Mitarbeiter');
+      formData.append('uploaded_by_type', 'employee');
+
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const res = await fetch('/api/ticket-attachments', {
+        method: 'POST',
+        body: formData
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Dateien konnten nicht hochgeladen werden.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei(en) wurden hochgeladen.'
+      });
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Dateien konnten nicht hochgeladen werden.'
+      });
+    } finally {
+      setUploadingFiles(false);
+      setIsDragActive(false);
+    }
+  }
+
+  async function deleteAttachment(attachmentId, fileName) {
+    const confirmed = window.confirm(
+      `Soll die Datei "${fileName}" wirklich gelöscht werden?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/ticket-attachments?id=${encodeURIComponent(attachmentId)}`, {
+        method: 'DELETE'
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Datei konnte nicht gelöscht werden.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei wurde gelöscht.'
+      });
+
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Datei konnte nicht gelöscht werden.'
+      });
+    }
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+
+    if (event.dataTransfer?.files?.length) {
+      uploadFiles(event.dataTransfer.files);
+    }
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
   }
 
   if (loading) return <div style={wrap}>Lade Ticket…</div>;
@@ -508,6 +619,93 @@ export default function TicketDetailPage() {
               style={textarea}
             />
           </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Dateien / Anhänge</h2>
+
+          <div
+            style={{
+              ...dropzone,
+              ...(isDragActive ? dropzoneActive : {})
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <div style={dropzoneTitle}>Dateien hier hineinziehen</div>
+            <div style={dropzoneText}>
+              oder per Klick auswählen. Mehrere Dateien sind möglich.
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => uploadFiles(e.target.files)}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={secondaryButton}
+              disabled={uploadingFiles}
+            >
+              {uploadingFiles ? 'Lädt hoch…' : 'Dateien auswählen'}
+            </button>
+          </div>
+
+          {attachments.length === 0 ? (
+            <div style={infoBox}>Noch keine Anhänge vorhanden.</div>
+          ) : (
+            <div style={attachmentGrid}>
+              {attachments.map((file) => (
+                <div key={file.id} style={attachmentCard}>
+                  <div style={attachmentName}>{file.original_name || 'Datei'}</div>
+                  <div style={attachmentMeta}>
+                    {formatFileSize(file.file_size)} ·{' '}
+                    {file.created_at
+                      ? new Date(file.created_at).toLocaleString('de-DE')
+                      : '—'}
+                  </div>
+
+                  <div style={attachmentActions}>
+                    {file.signed_url ? (
+                      <a
+                        href={file.signed_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={openLink}
+                      >
+                        Öffnen
+                      </a>
+                    ) : null}
+
+                    {file.download_url ? (
+                      <a
+                        href={file.download_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={downloadLink}
+                      >
+                        Download
+                      </a>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => deleteAttachment(file.id, file.original_name || 'Datei')}
+                      style={deleteButton}
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section style={card}>
@@ -726,6 +924,13 @@ export default function TicketDetailPage() {
   );
 }
 
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!size) return '0 KB';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`; }
+
 function chipButton(selected) {
   return {
     padding: '10px 12px',
@@ -829,6 +1034,96 @@ const chipWrap = {
   display: 'flex',
   gap: 10,
   flexWrap: 'wrap'
+};
+
+const dropzone = {
+  border: '2px dashed #d0d5dd',
+  borderRadius: 18,
+  padding: '26px 20px',
+  background: '#fcfcfd',
+  display: 'grid',
+  gap: 10,
+  justifyItems: 'center',
+  textAlign: 'center',
+  marginBottom: 18,
+  transition: 'all 0.15s ease'
+};
+
+const dropzoneActive = {
+  border: '2px dashed #8c6b43',
+  background: '#faf8f3'
+};
+
+const dropzoneTitle = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const dropzoneText = {
+  fontSize: 14,
+  color: '#667085'
+};
+
+const attachmentGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: 14
+};
+
+const attachmentCard = {
+  border: '1px solid #eceff3',
+  borderRadius: 16,
+  padding: 16,
+  background: '#fcfcfd'
+};
+
+const attachmentName = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: '#101828',
+  wordBreak: 'break-word'
+};
+
+const attachmentMeta = {
+  marginTop: 8,
+  fontSize: 13,
+  color: '#667085',
+  lineHeight: 1.6
+};
+
+const attachmentActions = {
+  marginTop: 14,
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap'
+};
+
+const openLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#8c6b43',
+  color: '#fff',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
+};
+
+const downloadLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#fff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
 };
 
 const taskList = {
