@@ -1,74 +1,82 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 
-const kundennummer = 'K-10023';
-
-const categories = [
-  'Eingangsrechnung',
-  'Ausgangsrechnung',
-  'Bankauszug',
-  'Verträge',
-  'Schreiben',
-  'Sonstiges'
-];
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!size) return '0 KB';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`; }
 
 export default function PortalDokumentePage() {
+  const fileInputRef = useRef(null);
+
   const [files, setFiles] = useState([]);
-  const [category, setCategory] = useState('Eingangsrechnung');
-  const [description, setDescription] = useState('');
+  const [isDragActive, setIsDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState(null);
+  const [statusBox, setStatusBox] = useState(null);
 
-  useEffect(() => {
-    loadDocuments();
-  }, []);
+  function addFiles(fileList) {
+    const nextFiles = Array.from(fileList || []);
+    if (!nextFiles.length) return;
 
-  async function loadDocuments() {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/documents?kundennummer=${encodeURIComponent(kundennummer)}`);
-      const json = await res.json();
+    setFiles((prev) => {
+      const merged = [...prev, ...nextFiles];
+      const seen = new Set();
 
-      if (!res.ok) {
-        throw new Error(json?.message || 'Dokumente konnten nicht geladen werden.');
-      }
-
-      setDocuments(json.data || []);
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        message: error.message || 'Dokumente konnten nicht geladen werden.'
+      return merged.filter((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
-    } finally {
-      setLoading(false);
+    });
+  }
+
+  function removeFile(indexToRemove) {
+    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+
+    if (event.dataTransfer?.files?.length) {
+      addFiles(event.dataTransfer.files);
     }
   }
 
-  async function handleUpload(e) {
-    e.preventDefault();
-    setStatus(null);
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(true);
+  }
 
+  function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+  }
+
+  async function uploadFiles() {
     if (!files.length) {
-      setStatus({
+      setStatusBox({
         type: 'error',
-        message: 'Bitte mindestens eine Datei auswählen.'
+        message: 'Bitte zuerst Dateien auswählen.'
       });
       return;
     }
 
     try {
       setUploading(true);
+      setStatusBox(null);
 
       const formData = new FormData();
-      formData.append('kundennummer', kundennummer);
-      formData.append('category', category);
-      formData.append('description', description);
-      formData.append('uploadedBy', 'portal');
+      formData.append('source', 'portal');
 
-      Array.from(files).forEach((file) => {
+      files.forEach((file) => {
         formData.append('files', file);
       });
 
@@ -77,411 +85,308 @@ export default function PortalDokumentePage() {
         body: formData
       });
 
-      const json = await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(json?.message || 'Upload fehlgeschlagen.');
+        throw new Error(data?.message || 'Dateien konnten nicht hochgeladen werden.');
       }
 
-      setStatus({
-        type: 'success',
-        message: 'Dokument(e) erfolgreich hochgeladen.'
-      });
-
       setFiles([]);
-      setCategory('Eingangsrechnung');
-      setDescription('');
-      await loadDocuments();
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei(en) wurden erfolgreich hochgeladen.'
+      });
     } catch (error) {
-      setStatus({
+      setStatusBox({
         type: 'error',
-        message: error.message || 'Upload fehlgeschlagen.'
+        message: error.message || 'Dateien konnten nicht hochgeladen werden.'
       });
     } finally {
       setUploading(false);
+      setIsDragActive(false);
     }
   }
 
   return (
-    <main style={pageWrap}>
-      <div style={pageInner}>
+    <main style={wrap}>
+      <div style={container}>
         <section style={heroCard}>
           <div style={badge}>Kundenportal</div>
-          <h1 style={title}>Dokumente</h1>
-          <p style={subtitle}>
-            Laden Sie hier Dokumente hoch und ordnen Sie diese direkt einer Kategorie zu.
-            Bereits hochgeladene Dokumente können Sie später wieder öffnen oder herunterladen.
+          <h1 style={mainTitle}>Dokumente hochladen</h1>
+          <p style={heroText}>
+            Hier können Sie Unterlagen sicher an uns übermitteln. Mehrere Dateien
+            sind gleichzeitig möglich.
           </p>
+        </section>
 
-          <div style={topInfoRow}>
-            <div style={topInfoBox}>
-              <span style={topInfoLabel}>Kundennummer</span>
-              <span style={topInfoValue}>{kundennummer}</span>
+        {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
+        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Dateien</h2>
+
+          <div
+            style={{
+              ...dropzone,
+              ...(isDragActive ? dropzoneActive : {})
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <div style={dropzoneTitle}>Dateien hier hineinziehen</div>
+            <div style={dropzoneText}>
+              oder per Klick auswählen. Mehrere Dateien sind möglich.
             </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => addFiles(e.target.files)}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={secondaryButton}
+              disabled={uploading}
+            >
+              Dateien auswählen
+            </button>
           </div>
-        </section>
 
-        {status?.type === 'error' && <div style={errorBox}>{status.message}</div>}
-        {status?.type === 'success' && <div style={successBox}>{status.message}</div>}
-
-        <section style={sectionCard}>
-          <h2 style={sectionTitle}>Dokument hochladen</h2>
-
-          <form onSubmit={handleUpload} style={stack18}>
-            <div style={grid2}>
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Kategorie</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  style={inputStyle}
-                >
-                  {categories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Dateien</label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => setFiles(e.target.files)}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Beschreibung</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optionaler Hinweis zum Dokument"
-                style={textareaStyle}
-              />
-            </div>
-
-            <div style={footerBottom}>
-              <div style={footerHint}>
-                Dokumente werden mandantenbezogen gespeichert und können später
-                intern geprüft und weiter bearbeitet werden.
-              </div>
-
-              <button type="submit" style={submitButton} disabled={uploading}>
-                {uploading ? 'Wird hochgeladen…' : 'Dokument hochladen'}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section style={sectionCard}>
-          <h2 style={sectionTitle}>Bereits hochgeladene Dokumente</h2>
-
-          {loading ? (
-            <div style={infoBox}>Dokumente werden geladen…</div>
-          ) : documents.length === 0 ? (
-            <div style={infoBox}>Noch keine Dokumente vorhanden.</div>
+          {files.length === 0 ? (
+            <div style={infoBox}>Noch keine Dateien ausgewählt.</div>
           ) : (
-            <div style={tableWrap}>
-              <div style={tableHeader}>
-                <div>Kategorie</div>
-                <div>Dateiname</div>
-                <div>Status</div>
-                <div>Datum</div>
-                <div>Aktionen</div>
-              </div>
-
-              {documents.map((doc) => (
-                <div key={doc.id} style={tableRow}>
-                  <div>{doc.category}</div>
-                  <div>{doc.original_name}</div>
-                  <div>{doc.status}</div>
-                  <div>{formatDateTime(doc.created_at)}</div>
-                  <div style={actionCell}>
-                    {doc.signed_url ? (
-                      <a href={doc.signed_url} target="_blank" rel="noreferrer" style={linkButton}>
-                        Öffnen
-                      </a>
-                    ) : null}
-
-                    {doc.download_url ? (
-                      <a href={doc.download_url} target="_blank" rel="noreferrer" style={secondaryLinkButton}>
-                        Download
-                      </a>
-                    ) : null}
+            <div style={fileList}>
+              {files.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${index}`} style={fileCard}>
+                  <div style={fileInfo}>
+                    <div style={fileName}>{file.name}</div>
+                    <div style={fileMeta}>{formatFileSize(file.size)}</div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    style={removeButton}
+                    disabled={uploading}
+                  >
+                    Entfernen
+                  </button>
                 </div>
               ))}
             </div>
           )}
+
+          <div style={actionRow}>
+            <button
+              type="button"
+              onClick={uploadFiles}
+              style={saveButton}
+              disabled={uploading}
+            >
+              {uploading ? 'Lädt hoch…' : 'Dateien hochladen'}
+            </button>
+          </div>
         </section>
       </div>
     </main>
   );
 }
 
-function formatDateTime(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString('de-DE');
-}
-
-const pageWrap = {
-  minHeight: '100vh',
-  background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
-  padding: '32px 20px 60px'
+const wrap = {
+  padding: 30,
+  background: '#f7f5ef',
+  minHeight: '100vh'
 };
 
-const pageInner = {
-  maxWidth: '1120px',
-  margin: '0 auto'
+const container = {
+  maxWidth: 980,
+  margin: '0 auto',
+  display: 'grid',
+  gap: 20
 };
 
 const heroCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '24px',
-  padding: '34px 36px',
-  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.05)',
-  marginBottom: '22px'
+  background: '#fff',
+  padding: 28,
+  borderRadius: 20,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
 };
 
 const badge = {
-  display: 'inline-block',
-  padding: '8px 14px',
-  borderRadius: '999px',
-  border: '1px solid #d8d2c6',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #ddd6c8',
+  color: '#6b5b45',
   background: '#faf8f3',
-  color: '#5f5a4f',
-  fontSize: '14px',
-  fontWeight: '600',
-  marginBottom: '18px'
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 12
 };
 
-const title = {
-  fontSize: '38px',
-  fontWeight: '700',
-  color: '#101828',
-  margin: '0 0 10px'
+const mainTitle = {
+  margin: 0,
+  fontSize: 30,
+  color: '#101828'
 };
 
-const subtitle = {
-  fontSize: '16px',
-  lineHeight: 1.75,
+const heroText = {
+  margin: '12px 0 0 0',
+  fontSize: 16,
   color: '#475467',
-  maxWidth: '860px',
-  margin: 0
-};
-
-const topInfoRow = {
-  marginTop: '22px',
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '12px'
-};
-
-const topInfoBox = {
-  padding: '12px 16px',
-  borderRadius: '14px',
-  background: '#faf8f3',
-  border: '1px solid #eadfcd',
-  display: 'flex',
-  gap: '10px',
-  alignItems: 'center'
-};
-
-const topInfoLabel = {
-  fontSize: '13px',
-  fontWeight: '700',
-  color: '#5d4a2f',
-  textTransform: 'uppercase',
-  letterSpacing: '0.03em'
-};
-
-const topInfoValue = {
-  fontSize: '14px',
-  color: '#101828',
-  fontWeight: '600'
-};
-
-const sectionCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '22px',
-  padding: '26px 28px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
-  marginBottom: '18px'
-};
-
-const sectionTitle = {
-  fontSize: '24px',
-  fontWeight: '700',
-  color: '#101828',
-  margin: '0 0 18px'
-};
-
-const stack18 = {
-  display: 'grid',
-  gap: '18px'
-};
-
-const grid2 = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '16px'
-};
-
-const singleFieldWrap = {
-  display: 'grid',
-  gap: '8px'
-};
-
-const labelStyle = {
-  fontSize: '14px',
-  fontWeight: '700',
-  color: '#344054'
-};
-
-const inputStyle = {
-  width: '100%',
-  padding: '12px 14px',
-  borderRadius: '12px',
-  border: '1px solid #d0d5dd',
-  fontSize: '14px',
-  background: '#fff',
-  color: '#101828',
-  boxSizing: 'border-box'
-};
-
-const textareaStyle = {
-  width: '100%',
-  minHeight: '110px',
-  padding: '12px 14px',
-  borderRadius: '12px',
-  border: '1px solid #d0d5dd',
-  fontSize: '14px',
-  background: '#fff',
-  color: '#101828',
-  resize: 'vertical',
-  boxSizing: 'border-box',
   lineHeight: 1.6
 };
 
-const footerBottom = {
+const card = {
+  background: '#fff',
+  padding: 24,
+  borderRadius: 18,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const sectionTitle = {
+  margin: '0 0 16px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const dropzone = {
+  border: '2px dashed #d0d5dd',
+  borderRadius: 18,
+  padding: '26px 20px',
+  background: '#fcfcfd',
+  display: 'grid',
+  gap: 10,
+  justifyItems: 'center',
+  textAlign: 'center',
+  transition: 'all 0.15s ease'
+};
+
+const dropzoneActive = {
+  border: '2px dashed #8c6b43',
+  background: '#faf8f3'
+};
+
+const dropzoneTitle = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const dropzoneText = {
+  fontSize: 14,
+  color: '#667085'
+};
+
+const fileList = {
+  display: 'grid',
+  gap: 10,
+  marginTop: 16
+};
+
+const fileCard = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  gap: '20px',
+  gap: 12,
+  padding: 14,
+  borderRadius: 14,
+  border: '1px solid #eceff3',
+  background: '#fcfcfd'
+};
+
+const fileInfo = {
+  minWidth: 0
+};
+
+const fileName = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#101828',
+  wordBreak: 'break-word'
+};
+
+const fileMeta = {
+  marginTop: 4,
+  fontSize: 12,
+  color: '#667085'
+};
+
+const actionRow = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 18,
   flexWrap: 'wrap'
 };
 
-const footerHint = {
-  fontSize: '14px',
-  lineHeight: 1.7,
-  color: '#667085',
-  maxWidth: '700px'
-};
-
-const submitButton = {
-  padding: '16px 22px',
-  borderRadius: '14px',
+const saveButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
   border: 'none',
   background: '#8c6b43',
   color: '#fff',
-  fontWeight: '700',
-  fontSize: '15px',
-  cursor: 'pointer',
-  boxShadow: '0 8px 18px rgba(140, 107, 67, 0.18)'
+  fontWeight: 700,
+  cursor: 'pointer'
 };
 
-const tableWrap = {
-  display: 'grid',
-  gap: '10px'
-};
-
-const tableHeader = {
-  display: 'grid',
-  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.4fr',
-  gap: '14px',
-  padding: '12px 14px',
-  fontWeight: '700',
-  color: '#344054',
-  borderBottom: '1px solid #eceff3'
-};
-
-const tableRow = {
-  display: 'grid',
-  gridTemplateColumns: '1.2fr 2fr 1fr 1.2fr 1.4fr',
-  gap: '14px',
-  padding: '14px',
-  border: '1px solid #eceff3',
-  borderRadius: '14px',
-  background: '#fcfcfd',
-  color: '#101828',
-  alignItems: 'center'
-};
-
-const actionCell = {
-  display: 'flex',
-  gap: '8px',
-  flexWrap: 'wrap'
-};
-
-const linkButton = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '10px 12px',
-  borderRadius: '10px',
-  background: '#8c6b43',
-  color: '#fff',
-  fontWeight: '600',
-  fontSize: '13px',
-  textDecoration: 'none'
-};
-
-const secondaryLinkButton = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '10px 12px',
-  borderRadius: '10px',
-  background: '#ffffff',
-  color: '#101828',
+const secondaryButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
   border: '1px solid #d0d5dd',
-  fontWeight: '600',
-  fontSize: '13px',
-  textDecoration: 'none'
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const removeButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #fecdca',
+  background: '#fff',
+  color: '#b42318',
+  fontWeight: 700,
+  cursor: 'pointer',
+  flexShrink: 0
 };
 
 const infoBox = {
   padding: '14px 16px',
-  borderRadius: '14px',
+  borderRadius: 14,
   background: '#fffaeb',
   border: '1px solid #fedf89',
-  color: '#b54708'
+  color: '#b54708',
+  marginTop: 16
 };
 
 const errorBox = {
-  marginBottom: '16px',
   padding: '14px 16px',
-  borderRadius: '14px',
+  borderRadius: 14,
   background: '#fef3f2',
   border: '1px solid #fecdca',
   color: '#b42318'
 };
 
 const successBox = {
-  marginBottom: '16px',
   padding: '14px 16px',
-  borderRadius: '14px',
+  borderRadius: 14,
   background: '#ecfdf3',
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
 
