@@ -34,7 +34,9 @@ export default function TicketDetailPage() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   useEffect(() => {
-    if (id) loadTicket();
+    if (id) {
+      loadTicket();
+    }
   }, [id]);
 
   async function loadTicket() {
@@ -44,239 +46,916 @@ export default function TicketDetailPage() {
       const res = await fetch(`/api/tickets/${id}`);
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) {
+        throw new Error(data?.message || 'Ticket konnte nicht geladen werden.');
+      }
 
       setTicket(data.data.ticket);
       setMessages(data.data.messages || []);
-      setTasks(data.data.tasks || []);
       setAttachments(data.data.attachments || []);
-    } catch (err) {
-      setStatusBox({ type: 'error', message: err.message });
+      setTasks(
+        (data.data.tasks || []).map((task) => ({
+          ...task,
+          isEditing: false
+        }))
+      );
+
+      setStatusBox(null);
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht geladen werden.'
+      });
     } finally {
       setLoading(false);
     }
   }
 
   function updateTicketField(key, value) {
-    setTicket((prev) => ({ ...prev, [key]: value }));
+    setTicket((prev) => ({
+      ...prev,
+      [key]: value
+    }));
   }
 
   function toggleAssignedUser(user) {
     setTicket((prev) => {
-      const list = prev.assigned_users || [];
+      const current = Array.isArray(prev.assigned_users) ? prev.assigned_users : [];
+      const exists = current.includes(user);
+
       return {
         ...prev,
-        assigned_users: list.includes(user)
-          ? list.filter((u) => u !== user)
-          : [...list, user]
+        assigned_users: exists
+          ? current.filter((item) => item !== user)
+          : [...current, user]
       };
     });
   }
 
   async function saveTicket() {
-    setSavingTicket(true);
+    try {
+      setSavingTicket(true);
 
-    const res = await fetch(`/api/tickets/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(ticket)
-    });
+      const res = await fetch(`/api/tickets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: ticket.title,
+          description: ticket.description,
+          category: ticket.category,
+          priority: ticket.priority,
+          internal_status: ticket.internal_status,
+          customer_status: ticket.customer_status,
+          assigned_to: ticket.assigned_to,
+          assigned_users: ticket.assigned_users || [],
+          due_date: ticket.due_date || null,
+          internal_notes: ticket.internal_notes || ''
+        })
+      });
 
-    setSavingTicket(false);
+      const json = await res.json();
 
-    if (res.ok) {
-      setStatusBox({ type: 'success', message: 'Gespeichert' });
+      if (!res.ok) {
+        throw new Error(json?.message || 'Ticket konnte nicht gespeichert werden.');
+      }
+
+      setTicket(json.data);
+      setStatusBox({
+        type: 'success',
+        message: 'Ticket wurde gespeichert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht gespeichert werden.'
+      });
+    } finally {
+      setSavingTicket(false);
     }
   }
 
   async function deleteTicket() {
-    if (!confirm('Ticket wirklich löschen?')) return;
+    const confirmed = window.confirm(
+      'Soll dieses Ticket wirklich gelöscht werden? Alle Aufgaben, Nachrichten und Anhänge zu diesem Ticket werden ebenfalls entfernt.'
+    );
 
-    await fetch(`/api/tickets/${id}`, {
-      method: 'DELETE'
-    });
+    if (!confirmed) return;
 
-    window.location.href = '/intern/tickets';
-  }
+    try {
+      const res = await fetch(`/api/tickets/${id}`, {
+        method: 'DELETE'
+      });
 
-  async function addTask() {
-    if (!newTask) return;
+      const json = await res.json();
 
-    await fetch('/api/ticket-tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticket_id: id,
-        title: newTask,
-        assigned_to: newTaskAssignedTo,
-        due_date: newTaskDueDate
-      })
-    });
+      if (!res.ok) {
+        throw new Error(json?.message || 'Ticket konnte nicht gelöscht werden.');
+      }
 
-    setNewTask('');
-    setNewTaskAssignedTo('');
-    setNewTaskDueDate('');
-    loadTicket();
-  }
-
-  async function toggleTask(task) {
-    await fetch(`/api/ticket-tasks/${task.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_done: !task.is_done })
-    });
-
-    loadTicket();
+      window.location.href = '/intern/tickets';
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht gelöscht werden.'
+      });
+    }
   }
 
   async function sendMessage(internal = false) {
-    if (!newMessage) return;
+    if (!newMessage.trim()) return;
 
-    await fetch('/api/ticket-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticket_id: id,
-        message: newMessage,
-        author: 'Mitarbeiter',
-        author_type: 'employee',
-        is_internal: internal
-      })
-    });
+    try {
+      const res = await fetch('/api/ticket-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: id,
+          message: newMessage,
+          author: 'Mitarbeiter',
+          author_type: 'employee',
+          is_internal: internal
+        })
+      });
 
-    setNewMessage('');
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Nachricht konnte nicht gespeichert werden.');
+      }
+
+      setNewMessage('');
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Nachricht konnte nicht gespeichert werden.'
+      });
+    }
+  }
+
+  async function addTask() {
+    if (!newTask.trim()) return;
+
+    try {
+      const res = await fetch('/api/ticket-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: id,
+          title: newTask,
+          assigned_to: newTaskAssignedTo,
+          due_date: newTaskDueDate || null
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht erstellt werden.');
+      }
+
+      setNewTask('');
+      setNewTaskAssignedTo('');
+      setNewTaskDueDate('');
+      await loadTicket();
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde hinzugefügt.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht erstellt werden.'
+      });
+    }
+  }
+
+  async function toggleTask(task) {
+    try {
+      const res = await fetch(`/api/ticket-tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_done: !task.is_done
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht aktualisiert werden.');
+      }
+
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === task.id ? { ...item, is_done: !item.is_done } : item
+        )
+      );
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht aktualisiert werden.'
+      });
+    }
+  }
+
+  function startEditTask(taskId) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, isEditing: true } : task
+      )
+    );
+  }
+
+  function cancelEditTask(taskId) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, isEditing: false } : task
+      )
+    );
     loadTicket();
+  }
+
+  function updateTaskField(taskId, key, value) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, [key]: value } : task
+      )
+    );
+  }
+
+  async function saveTask(task) {
+    try {
+      const res = await fetch(`/api/ticket-tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: task.title,
+          assigned_to: task.assigned_to || '',
+          due_date: task.due_date || null,
+          sort_order: Number(task.sort_order || 0),
+          is_done: Boolean(task.is_done)
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht gespeichert werden.');
+      }
+
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === task.id ? { ...json.data, isEditing: false } : item
+        )
+      );
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde gespeichert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht gespeichert werden.'
+      });
+    }
+  }
+
+  async function deleteTask(taskId) {
+    const confirmed = window.confirm('Soll diese Aufgabe wirklich gelöscht werden?');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/ticket-tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht gelöscht werden.');
+      }
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde gelöscht.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht gelöscht werden.'
+      });
+    }
+  }
+
+  async function moveTask(task, direction) {
+    const sorted = [...tasks].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const index = sorted.findIndex((item) => item.id === task.id);
+
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+
+    const current = sorted[index];
+    const target = sorted[targetIndex];
+
+    try {
+      await fetch(`/api/ticket-tasks/${current.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort_order: Number(target.sort_order || 0)
+        })
+      });
+
+      await fetch(`/api/ticket-tasks/${target.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort_order: Number(current.sort_order || 0)
+        })
+      });
+
+      await loadTicket();
+
+      setStatusBox({
+        type: 'success',
+        message: 'Reihenfolge wurde aktualisiert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Reihenfolge konnte nicht geändert werden.'
+      });
+    }
   }
 
   async function uploadFiles(fileList) {
-    const formData = new FormData();
-    formData.append('ticket_id', id);
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
 
-    Array.from(fileList).forEach((file) => {
-      formData.append('files', file);
-    });
+    try {
+      setUploadingFiles(true);
 
-    await fetch('/api/ticket-attachments', {
-      method: 'POST',
-      body: formData
-    });
+      const formData = new FormData();
+      formData.append('ticket_id', id);
+      formData.append('uploaded_by', 'Mitarbeiter');
+      formData.append('uploaded_by_type', 'employee');
 
-    loadTicket();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const res = await fetch('/api/ticket-attachments', {
+        method: 'POST',
+        body: formData
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Dateien konnten nicht hochgeladen werden.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei(en) wurden hochgeladen.'
+      });
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Dateien konnten nicht hochgeladen werden.'
+      });
+    } finally {
+      setUploadingFiles(false);
+      setIsDragActive(false);
+    }
   }
 
-  if (loading) return <div style={{ padding: 40 }}>Lade...</div>;
-  if (!ticket) return <div>Fehler</div>;
+  async function deleteAttachment(attachmentId, fileName) {
+    const confirmed = window.confirm(
+      `Soll die Datei "${fileName}" wirklich gelöscht werden?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/ticket-attachments?id=${encodeURIComponent(attachmentId)}`, {
+        method: 'DELETE'
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Datei konnte nicht gelöscht werden.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: 'Datei wurde gelöscht.'
+      });
+
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Datei konnte nicht gelöscht werden.'
+      });
+    }
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+
+    if (event.dataTransfer?.files?.length) {
+      uploadFiles(event.dataTransfer.files);
+    }
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(true);
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+  }
+
+  if (loading) return <div style={wrap}>Lade Ticket…</div>;
+  if (!ticket) return <div style={wrap}>Ticket nicht gefunden</div>;
 
   return (
-    <main style={{ padding: 40 }}>
-      <h1>{ticket.title}</h1>
+    <main style={wrap}>
+      <div style={container}>
+        {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
+        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
-      <input
-        value={ticket.title || ''}
-        onChange={(e) =>
-          updateTicketField('title', e.target.value)
-        }
-      />
+        <section style={card}>
+          <div style={headerTop}>
+            <div>
+              <h1 style={mainTitle}>{ticket.title}</h1>
+              <div style={metaText}>
+                {ticket.ticket_number} · {ticket.kundennummer || 'ohne Kundennummer'}
+              </div>
+            </div>
 
-      <textarea
-        value={ticket.description || ''}
-        onChange={(e) =>
-          updateTicketField('description', e.target.value)
-        }
-      />
+            <div style={headerActions}>
+              <button onClick={saveTicket} style={saveButton} disabled={savingTicket}>
+                {savingTicket ? 'Speichert…' : 'Ticket speichern'}
+              </button>
 
-      <br /><br />
+              <button onClick={deleteTicket} style={deleteTicketButton}>
+                Ticket löschen
+              </button>
+            </div>
+          </div>
 
-      <button onClick={saveTicket}>
-        Speichern
-      </button>
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>Überschrift</label>
+              <input
+                value={ticket.title || ''}
+                onChange={(e) => updateTicketField('title', e.target.value)}
+                style={input}
+              />
+            </div>
 
-      <button onClick={deleteTicket} style={{ marginLeft: 10 }}>
-        Löschen
-      </button>
+            <div style={field}>
+              <label style={label}>Kategorie</label>
+              <input
+                value={ticket.category || ''}
+                onChange={(e) => updateTicketField('category', e.target.value)}
+                style={input}
+              />
+            </div>
 
-      <hr />
+            <div style={field}>
+              <label style={label}>Priorität</label>
+              <select
+                value={ticket.priority || 'normal'}
+                onChange={(e) => updateTicketField('priority', e.target.value)}
+                style={input}
+              >
+                <option value="niedrig">niedrig</option>
+                <option value="normal">normal</option>
+                <option value="hoch">hoch</option>
+                <option value="kritisch">kritisch</option>
+              </select>
+            </div>
 
-      <h3>Aufgaben</h3>
+            <div style={field}>
+              <label style={label}>Interner Status</label>
+              <select
+                value={ticket.internal_status || 'neu'}
+                onChange={(e) => updateTicketField('internal_status', e.target.value)}
+                style={input}
+              >
+                <option value="neu">Neu</option>
+                <option value="zugewiesen">Zugewiesen</option>
+                <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="wartet_auf_kunde">Wartet auf Kunde</option>
+                <option value="wartet_intern">Wartet intern</option>
+                <option value="erledigt">Erledigt</option>
+              </select>
+            </div>
 
-      {tasks.map((task) => (
-        <div key={task.id}>
-          <input
-            type="checkbox"
-            checked={task.is_done}
-            onChange={() => toggleTask(task)}
+            <div style={field}>
+              <label style={label}>Kundenstatus</label>
+              <select
+                value={ticket.customer_status || 'neu'}
+                onChange={(e) => updateTicketField('customer_status', e.target.value)}
+                style={input}
+              >
+                <option value="neu">Neu</option>
+                <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="rueckfrage">Rückfrage</option>
+                <option value="erledigt">Erledigt</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Fällig bis</label>
+              <input
+                type="date"
+                value={ticket.due_date || ''}
+                onChange={(e) => updateTicketField('due_date', e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Hauptzuständig</label>
+              <select
+                value={ticket.assigned_to || ''}
+                onChange={(e) => updateTicketField('assigned_to', e.target.value)}
+                style={input}
+              >
+                <option value="">Bitte wählen</option>
+                {employeeOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ ...field, gridColumn: 'span 2' }}>
+              <label style={label}>Weitere Beteiligte</label>
+              <div style={chipWrap}>
+                {employeeOptions.map((user) => {
+                  const selected = (ticket.assigned_users || []).includes(user);
+                  return (
+                    <button
+                      key={user}
+                      type="button"
+                      onClick={() => toggleAssignedUser(user)}
+                      style={chipButton(selected)}
+                    >
+                      {user}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={field}>
+            <label style={label}>Beschreibung</label>
+            <textarea
+              value={ticket.description || ''}
+              onChange={(e) => updateTicketField('description', e.target.value)}
+              style={textarea}
+            />
+          </div>
+
+          <div style={field}>
+            <label style={label}>Interne Notizen</label>
+            <textarea
+              value={ticket.internal_notes || ''}
+              onChange={(e) => updateTicketField('internal_notes', e.target.value)}
+              placeholder="Nur intern sichtbar"
+              style={textarea}
+            />
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Dateien / Anhänge</h2>
+
+          <div
+            style={{
+              ...dropzone,
+              ...(isDragActive ? dropzoneActive : {})
+            }}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <div style={dropzoneTitle}>Dateien hier hineinziehen</div>
+            <div style={dropzoneText}>
+              oder per Klick auswählen. Mehrere Dateien sind möglich.
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => uploadFiles(e.target.files)}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={secondaryButton}
+              disabled={uploadingFiles}
+            >
+              {uploadingFiles ? 'Lädt hoch…' : 'Dateien auswählen'}
+            </button>
+          </div>
+
+          {attachments.length === 0 ? (
+            <div style={infoBox}>Noch keine Anhänge vorhanden.</div>
+          ) : (
+            <div style={attachmentGrid}>
+              {attachments.map((file) => (
+                <div key={file.id} style={attachmentCard}>
+                  <div style={attachmentName}>{file.original_name || 'Datei'}</div>
+                  <div style={attachmentMeta}>
+                    {formatFileSize(file.file_size)} ·{' '}
+                    {file.created_at
+                      ? new Date(file.created_at).toLocaleString('de-DE')
+                      : '—'}
+                  </div>
+
+                  <div style={attachmentActions}>
+                    {file.signed_url ? (
+                      <a
+                        href={file.signed_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={openLink}
+                      >
+                        Öffnen
+                      </a>
+                    ) : null}
+
+                    {file.download_url ? (
+                      <a
+                        href={file.download_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={downloadLink}
+                      >
+                        Download
+                      </a>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => deleteAttachment(file.id, file.original_name || 'Datei')}
+                      style={deleteButton}
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Aufgaben / Checkliste</h2>
+
+          {(tasks || []).length === 0 ? (
+            <div style={infoBox}>Noch keine Aufgaben vorhanden.</div>
+          ) : (
+            <div style={taskList}>
+              {tasks
+                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map((task, index, arr) => (
+                  <div key={task.id} style={taskCard}>
+                    {!task.isEditing ? (
+                      <>
+                        <div style={taskRowTop}>
+                          <div style={taskLeft}>
+                            <input
+                              type="checkbox"
+                              checked={task.is_done}
+                              onChange={() => toggleTask(task)}
+                            />
+                            <span
+                              style={{
+                                ...taskTitle,
+                                textDecoration: task.is_done ? 'line-through' : 'none'
+                              }}
+                            >
+                              {task.title}
+                            </span>
+                          </div>
+
+                          <div style={taskRight}>
+                            <button
+                              type="button"
+                              onClick={() => moveTask(task, 'up')}
+                              disabled={index === 0}
+                              style={smallButton}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveTask(task, 'down')}
+                              disabled={index === arr.length - 1}
+                              style={smallButton}
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditTask(task.id)}
+                              style={editButton}
+                            >
+                              Bearbeiten
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteTask(task.id)}
+                              style={deleteButton}
+                            >
+                              Löschen
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={taskMetaRow}>
+                          <span><strong>Zuständig:</strong> {task.assigned_to || 'Nicht gesetzt'}</span>
+                          <span><strong>Frist:</strong> {task.due_date ? new Date(task.due_date).toLocaleDateString('de-DE') : 'Keine Frist'}</span>
+                          <span><strong>Reihenfolge:</strong> {task.sort_order || 0}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={editGrid}>
+                          <div style={field}>
+                            <label style={label}>Aufgabe</label>
+                            <input
+                              value={task.title || ''}
+                              onChange={(e) => updateTaskField(task.id, 'title', e.target.value)}
+                              style={input}
+                            />
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Zuständig</label>
+                            <select
+                              value={task.assigned_to || ''}
+                              onChange={(e) => updateTaskField(task.id, 'assigned_to', e.target.value)}
+                              style={input}
+                            >
+                              <option value="">Nicht gesetzt</option>
+                              {employeeOptions.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Frist</label>
+                            <input
+                              type="date"
+                              value={task.due_date || ''}
+                              onChange={(e) => updateTaskField(task.id, 'due_date', e.target.value)}
+                              style={input}
+                            />
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Reihenfolge</label>
+                            <input
+                              type="number"
+                              value={task.sort_order || 0}
+                              onChange={(e) =>
+                                updateTaskField(task.id, 'sort_order', Number(e.target.value || 0))
+                              }
+                              style={input}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={taskEditActions}>
+                          <button
+                            type="button"
+                            onClick={() => saveTask(task)}
+                            style={saveButton}
+                          >
+                            Aufgabe speichern
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelEditTask(task.id)}
+                            style={secondaryButton}
+                          >
+                            Abbrechen
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+
+          <div style={taskCreateBox}>
+            <input
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              placeholder="Neue Aufgabe..."
+              style={input}
+            />
+            <select
+              value={newTaskAssignedTo}
+              onChange={(e) => setNewTaskAssignedTo(e.target.value)}
+              style={input}
+            >
+              <option value="">Zuständig</option>
+              {employeeOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={newTaskDueDate}
+              onChange={(e) => setNewTaskDueDate(e.target.value)}
+              style={input}
+            />
+            <button onClick={addTask} style={saveButton}>
+              Aufgabe hinzufügen
+            </button>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Kommunikation</h2>
+
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              style={{
+                ...messageBox,
+                background: msg.is_internal ? '#fff4e5' : '#eef6ff'
+              }}
+            >
+              <div style={messageMeta}>
+                <strong>{msg.author || 'Unbekannt'}</strong> ·{' '}
+                {msg.created_at ? new Date(msg.created_at).toLocaleString('de-DE') : '—'}
+                {msg.is_internal ? ' · interne Notiz' : ''}
+              </div>
+              <div>{msg.message}</div>
+            </div>
+          ))}
+
+          <textarea
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Nachricht oder interne Notiz schreiben..."
+            style={textarea}
           />
-          {task.title} ({task.assigned_to})
-        </div>
-      ))}
 
-      <input
-        placeholder="Neue Aufgabe"
-        value={newTask}
-        onChange={(e) => setNewTask(e.target.value)}
-      />
-
-      <select
-        value={newTaskAssignedTo}
-        onChange={(e) => setNewTaskAssignedTo(e.target.value)}
-      >
-        <option value="">Zuständig</option>
-        {employeeOptions.map((e) => (
-          <option key={e}>{e}</option>
-        ))}
-      </select>
-
-      <input
-        type="date"
-        value={newTaskDueDate}
-        onChange={(e) => setNewTaskDueDate(e.target.value)}
-      />
-
-      <button onClick={addTask}>
-        Aufgabe hinzufügen
-      </button>
-
-      <hr />
-
-      <h3>Dateien</h3>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={(e) => uploadFiles(e.target.files)}
-      />
-
-      {attachments.map((file) => (
-        <div key={file.id}>{file.original_name}</div>
-      ))}
-
-      <hr />
-
-      <h3>Nachrichten</h3>
-
-      {messages.map((msg) => (
-        <div key={msg.id}>
-          {msg.message} {msg.is_internal && '(intern)'}
-        </div>
-      ))}
-
-      <textarea
-        value={newMessage}
-        onChange={(e) => setNewMessage(e.target.value)}
-      />
-
-      <button onClick={() => sendMessage(false)}>
-        Nachricht senden
-      </button>
-
-      <button onClick={() => sendMessage(true)}>
-        Intern
-      </button>
+          <div style={row}>
+            <button onClick={() => sendMessage(false)} style={saveButton}>
+              Nachricht senden
+            </button>
+            <button onClick={() => sendMessage(true)} style={secondaryButton}>
+              Interne Notiz
+            </button>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
-
 
 function formatFileSize(bytes) {
   const size = Number(bytes || 0);
@@ -326,6 +1005,12 @@ const headerTop = {
   alignItems: 'flex-start',
   flexWrap: 'wrap',
   marginBottom: 20
+};
+
+const headerActions = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap'
 };
 
 const mainTitle = {
@@ -611,6 +1296,16 @@ const smallButton = {
 const deleteButton = {
   padding: '10px 12px',
   borderRadius: 10,
+  border: '1px solid #fecdca',
+  background: '#fff',
+  color: '#b42318',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const deleteTicketButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
   border: '1px solid #fecdca',
   background: '#fff',
   color: '#b42318',
