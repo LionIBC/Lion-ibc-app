@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from 'react'; import { useParams } from 'next/navigation';
 
-const employeeOptions = ['Erjon', 'Silvana', 'Claudia'];
+const employeeOptions = [
+  'Erjon Godeni',
+  'Silvana Sabellek',
+  'Klaudia Junske',
+  'Jana Junske',
+  'Stefan Leiste',
+  'Khaoula Sahel',
+  'Jennifer Enter Pineker',
+  'Hasan Godeni'
+];
+
 
 export default function TicketDetailPage() {
   const { id } = useParams();
