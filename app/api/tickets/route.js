@@ -12,6 +12,8 @@ function mapTicket(row) {
     id: row.id,
     ticket_number: row.ticket_number || '',
     kundennummer: row.kundennummer || '',
+    customer_name: row.customer_name || '',
+    mandant_name: row.mandant_name || '',
     title: row.title || '',
     description: row.description || '',
     category: row.category || '',
@@ -23,6 +25,8 @@ function mapTicket(row) {
     assigned_to: row.assigned_to || '',
     assigned_users: Array.isArray(row.assigned_users) ? row.assigned_users : [],
     due_date: row.due_date || null,
+    appointment_date: row.appointment_date || null,
+    custom_status: row.custom_status || '',
     internal_notes: row.internal_notes || '',
     created_at: row.created_at || null,
     updated_at: row.updated_at || null
@@ -65,15 +69,19 @@ export async function POST(req) {
     const body = await req.json();
 
     const kundennummer = body.kundennummer || '';
+    const customerName = body.customer_name || '';
+    const mandantName = body.mandant_name || '';
     const title = body.title || '';
     const description = body.description || '';
-    const category = body.category || 'Allgemein';
+    const category = body.category || '';
     const priority = body.priority || 'normal';
     const createdByType = body.created_by_type || 'employee';
     const createdBy = body.created_by || 'Mitarbeiter';
     const assignedTo = body.assigned_to || '';
     const assignedUsers = Array.isArray(body.assigned_users) ? body.assigned_users : [];
     const dueDate = body.due_date || null;
+    const appointmentDate = body.appointment_date || null;
+    const customStatus = body.custom_status || '';
     const templateId = body.template_id || '';
 
     if (!title.trim()) {
@@ -88,26 +96,30 @@ export async function POST(req) {
 
     const ticketNumber = buildTicketNumber();
 
+    const insertPayload = {
+      ticket_number: ticketNumber,
+      kundennummer: kundennummer,
+      customer_name: customerName,
+      mandant_name: mandantName,
+      title: title,
+      description: description,
+      category: category,
+      priority: priority,
+      internal_status: 'neu',
+      customer_status: createdByType === 'customer' ? 'neu' : 'in_bearbeitung',
+      created_by_type: createdByType,
+      created_by: createdBy,
+      assigned_to: assignedTo,
+      assigned_users: assignedUsers,
+      due_date: dueDate,
+      appointment_date: appointmentDate,
+      custom_status: customStatus,
+      updated_at: new Date().toISOString()
+    };
+
     const { data: ticketRow, error: ticketError } = await supabase
       .from('tickets')
-      .insert([
-        {
-          ticket_number: ticketNumber,
-          kundennummer,
-          title,
-          description,
-          category,
-          priority,
-          internal_status: 'neu',
-          customer_status: createdByType === 'customer' ? 'neu' : 'in_bearbeitung',
-          created_by_type: createdByType,
-          created_by: createdBy,
-          assigned_to: assignedTo,
-          assigned_users: assignedUsers,
-          due_date: dueDate,
-          updated_at: new Date().toISOString()
-        }
-      ])
+      .insert([insertPayload])
       .select('*')
       .single();
 
