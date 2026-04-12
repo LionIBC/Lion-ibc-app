@@ -33,22 +33,143 @@ function mapTicket(row) {
   };
 }
 
-// GET EINZELNES TICKET
+function mapMessage(row) {
+  return {
+    id: row.id,
+    ticket_id: row.ticket_id || '',
+    message: row.message || '',
+    author: row.author || '',
+    author_type: row.author_type || '',
+    is_internal: Boolean(row.is_internal),
+    created_at: row.created_at || null
+  };
+}
+
+function mapTask(row) {
+  return {
+    id: row.id,
+    ticket_id: row.ticket_id || '',
+    title: row.title || '',
+    is_done: Boolean(row.is_done),
+    assigned_to: row.assigned_to || '',
+    due_date: row.due_date || null,
+    sort_order: row.sort_order || 0,
+    created_at: row.created_at || null
+  };
+}
+
+function mapAttachment(row) {
+  return {
+    id: row.id,
+    ticket_id: row.ticket_id || '',
+    file_path: row.file_path || '',
+    original_name: row.original_name || '',
+    mime_type: row.mime_type || '',
+    file_size: row.file_size || 0,
+    uploaded_by: row.uploaded_by || '',
+    uploaded_by_type: row.uploaded_by_type || '',
+    created_at: row.created_at || null
+  };
+}
+
+async function addSignedUrlsToAttachments(rows) {
+  const result = [];
+
+  for (const row of rows || []) {
+    let signedUrl = null;
+    let downloadUrl = null;
+
+    if (row.file_path) {
+      const { data: openData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60);
+
+      const { data: downloadData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60, {
+          download: row.original_name || true
+        });
+
+      signedUrl = openData?.signedUrl || null;
+      downloadUrl = downloadData?.signedUrl || null;
+    }
+
+    result.push({
+      ...mapAttachment(row),
+      signed_url: signedUrl,
+      download_url: downloadUrl
+    });
+  }
+
+  return result;
+}
+
 export async function GET(req, { params }) {
   try {
-    const { id } = params;
+    const id = params.id;
 
-    const { data, error } = await supabase
+    if (!id) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Ticket-ID fehlt.'
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: ticketRow, error: ticketError } = await supabase
       .from('tickets')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error) throw error;
+    if (ticketError || !ticketRow) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Ticket nicht gefunden.'
+        },
+        { status: 404 }
+      );
+    }
+
+    const [messagesResult, tasksResult, attachmentsResult] = await Promise.all([
+      supabase
+        .from('ticket_messages')
+        .select('*')
+        .eq('ticket_id', id)
+        .order('created_at', { ascending: true }),
+
+      supabase
+        .from('ticket_tasks')
+        .select('*')
+        .eq('ticket_id', id)
+        .order('sort_order', { ascending: true }),
+
+      supabase
+        .from('ticket_attachments')
+        .select('*')
+        .eq('ticket_id', id)
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (messagesResult.error) throw messagesResult.error;
+    if (tasksResult.error) throw tasksResult.error;
+    if (attachmentsResult.error) throw attachmentsResult.error;
+
+    const attachmentsWithUrls = await addSignedUrlsToAttachments(
+      attachmentsResult.data || []
+    );
 
     return Response.json({
       success: true,
-      data: mapTicket(data)
+      data: {
+        ticket: mapTicket(ticketRow),
+        messages: (messagesResult.data || []).map(mapMessage),
+        tasks: (tasksResult.data || []).map(mapTask),
+        attachments: attachmentsWithUrls
+      }
     });
   } catch (error) {
     return Response.json(
@@ -61,10 +182,9 @@ export async function GET(req, { params }) {
   }
 }
 
-// UPDATE TICKET
 export async function PATCH(req, { params }) {
   try {
-    const { id } = params;
+    const id = params.id;
     const body = await req.json();
 
     const updatePayload = {
@@ -80,19 +200,9 @@ export async function PATCH(req, { params }) {
     if (body.assigned_to !== undefined) updatePayload.assigned_to = body.assigned_to;
     if (body.assigned_users !== undefined) updatePayload.assigned_users = body.assigned_users;
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null;
-
-    // 🔥 NEU (dein Wunsch)
-    if (body.appointment_date !== undefined) {
-      updatePayload.appointment_date = body.appointment_date || null;
-    }
-
-    if (body.custom_status !== undefined) {
-      updatePayload.custom_status = body.custom_status || '';
-    }
-
-    if (body.internal_notes !== undefined) {
-      updatePayload.internal_notes = body.internal_notes || '';
-    }
+    if (body.appointment_date !== undefined) updatePayload.appointment_date = body.appointment_date || null;
+    if (body.custom_status !== undefined) updatePayload.custom_status = body.custom_status || '';
+    if (body.internal_notes !== undefined) updatePayload.internal_notes = body.internal_notes || '';
 
     const { data, error } = await supabase
       .from('tickets')
@@ -119,17 +229,27 @@ export async function PATCH(req, { params }) {
   }
 }
 
-// DELETE TICKET
 export async function DELETE(req, { params }) {
   try {
-    const { id } = params;
+    const id = params.id;
 
-    // zuerst abhängige Daten löschen
+    const { data: attachments } = await supabase
+      .from('ticket_attachments')
+      .select('*')
+      .eq('ticket_id', id);
+
+    const filePaths = (attachments || [])
+      .map((item) => item.file_path)
+      .filter(Boolean);
+
+    if (filePaths.length > 0) {
+      await supabase.storage.from('documents').remove(filePaths);
+    }
+
     await supabase.from('ticket_messages').delete().eq('ticket_id', id);
     await supabase.from('ticket_tasks').delete().eq('ticket_id', id);
     await supabase.from('ticket_attachments').delete().eq('ticket_id', id);
 
-    // dann ticket selbst
     const { error } = await supabase
       .from('tickets')
       .delete()
