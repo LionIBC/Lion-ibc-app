@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react'; import { useRouter } from 'next/nav
 
 function formatDate(value) {
   if (!value) return '';
-  return new Date(value).toLocaleDateString('de-DE');
+  try {
+    return new Date(value).toLocaleDateString('de-DE');
+  } catch {
+    return '';
+  }
 }
 
 function getStatusLabel(status) {
@@ -18,7 +22,7 @@ function getStatusLabel(status) {
     case 'erledigt':
       return 'Erledigt';
     default:
-      return status;
+      return status || 'Neu';
   }
 }
 
@@ -42,30 +46,66 @@ export default function PortalTicketsPage() {
 
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusBox, setStatusBox] = useState(null);
 
   useEffect(() => {
     loadTickets();
   }, []);
 
   async function loadTickets() {
-    const res = await fetch('/api/portal/tickets');
-    const data = await res.json();
+    try {
+      setLoading(true);
+      setStatusBox(null);
 
-    if (data.success) {
-      setTickets(data.data);
+      const res = await fetch('/api/portal/tickets');
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'Tickets konnten nicht geladen werden.');
+      }
+
+      setTickets(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Tickets konnten nicht geladen werden.'
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   if (loading) {
-    return <div style={wrap}>Lade Tickets…</div>;
+    return (
+      <main style={wrap}>
+        <div style={container}>Lade Tickets…</div>
+      </main>
+    );
   }
 
   return (
     <main style={wrap}>
       <div style={container}>
-        <h1 style={title}>Meine Anfragen</h1>
+        <section style={heroCard}>
+          <div style={badge}>Kundenportal</div>
+          <h1 style={title}>Meine Anfragen</h1>
+          <p style={heroText}>
+            Hier sehen Sie alle Ihre Anfragen, den aktuellen Bearbeitungsstand und
+            können einzelne Tickets öffnen.
+          </p>
+
+          <button
+            onClick={() => router.push('/portal/tickets/new')}
+            style={newButton}
+            type="button"
+          >
+            + Neue Anfrage
+          </button>
+        </section>
+
+        {statusBox?.type === 'error' && (
+          <div style={errorBox}>{statusBox.message}</div>
+        )}
 
         {tickets.length === 0 ? (
           <div style={emptyBox}>
@@ -78,6 +118,7 @@ export default function PortalTicketsPage() {
                 key={ticket.id}
                 onClick={() => router.push(`/portal/tickets/${ticket.id}`)}
                 style={card}
+                type="button"
               >
                 <div style={cardHeader}>
                   <span
@@ -94,11 +135,11 @@ export default function PortalTicketsPage() {
                   {ticket.title || 'Ohne Titel'}
                 </div>
 
-                {ticket.appointment_date && (
+                {ticket.appointment_date ? (
                   <div style={meta}>
                     Termin: {formatDate(ticket.appointment_date)}
                   </div>
-                )}
+                ) : null}
 
                 <div style={metaSmall}>
                   Letzte Änderung: {formatDate(ticket.updated_at)}
@@ -120,12 +161,55 @@ const wrap = {
 
 const container = {
   maxWidth: 900,
-  margin: '0 auto'
+  margin: '0 auto',
+  display: 'grid',
+  gap: 20
+};
+
+const heroCard = {
+  background: '#fff',
+  padding: 28,
+  borderRadius: 20,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const badge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #ddd6c8',
+  color: '#6b5b45',
+  background: '#faf8f3',
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 12
 };
 
 const title = {
   fontSize: 28,
-  marginBottom: 20
+  margin: 0,
+  color: '#101828'
+};
+
+const heroText = {
+  margin: '12px 0 0 0',
+  fontSize: 16,
+  color: '#475467',
+  lineHeight: 1.6
+};
+
+const newButton = {
+  marginTop: 18,
+  padding: '12px 16px',
+  borderRadius: 12,
+  background: '#8c6b43',
+  color: '#fff',
+  border: 'none',
+  fontWeight: 600,
+  cursor: 'pointer'
 };
 
 const grid = {
@@ -139,7 +223,8 @@ const card = {
   padding: 16,
   border: '1px solid #e5e7eb',
   textAlign: 'left',
-  cursor: 'pointer'
+  cursor: 'pointer',
+  boxShadow: '0 4px 12px rgba(16, 24, 40, 0.04)'
 };
 
 const cardHeader = {
@@ -156,7 +241,8 @@ const statusBadge = {
 const cardTitle = {
   fontSize: 16,
   fontWeight: 700,
-  marginBottom: 10
+  marginBottom: 10,
+  color: '#101828'
 };
 
 const meta = {
@@ -175,4 +261,12 @@ const emptyBox = {
   background: '#fff',
   borderRadius: 10,
   border: '1px solid #e5e7eb'
+};
+
+const errorBox = {
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318'
 };
