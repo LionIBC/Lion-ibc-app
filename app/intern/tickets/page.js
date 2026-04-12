@@ -416,6 +416,21 @@ export default function InternTicketsBoardPage() {
             <div style={statLabel}>Wartend</div>
             <div style={statValue}>{stats.wartet}</div>
           </div>
+               <div style={field}>
+  <label style={label}>Zusätzlicher Status</label>
+  <select
+    value={ticket.custom_status || ''}
+    onChange={(e) => updateTicketField('custom_status', e.target.value)}
+    style={input}
+  >
+    <option value="">Kein Zusatzstatus</option>
+    <option value="Warten auf Behörden">Warten auf Behörden</option>
+    <option value="Notartermin">Notartermin</option>
+    <option value="Prüfung Steuerberater">Prüfung Steuerberater</option>
+    <option value="Unterlagen unvollständig">Unterlagen unvollständig</option>
+  </select>
+</div>
+ 
           <div style={statCard}>
             <div style={statLabel}>Erledigt</div>
             <div style={statValue}>{stats.erledigt}</div>
