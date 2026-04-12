@@ -11,10 +11,11 @@ const boardColumns = [
   { key: 'wartet_intern', label: 'Wartet intern' },
   { key: 'erledigt', label: 'Erledigt' } ];
 
-const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch'];
+const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch']; const employeeOptions = ['Erjon', 'Silvana', 'Claudia'];
 
 export default function InternTicketsBoardPage() {
   const [tickets, setTickets] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -23,6 +24,7 @@ export default function InternTicketsBoardPage() {
   const [assignedToFilter, setAssignedToFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
+  const [selectedTemplate, setSelectedTemplate] = useState('');
   const [newTicket, setNewTicket] = useState({
     kundennummer: '',
     title: '',
@@ -30,11 +32,13 @@ export default function InternTicketsBoardPage() {
     category: '',
     priority: 'normal',
     assigned_to: '',
+    assigned_users: [],
     due_date: ''
   });
 
   useEffect(() => {
     loadTickets();
+    loadTemplates();
   }, []);
 
   async function loadTickets() {
@@ -60,6 +64,19 @@ export default function InternTicketsBoardPage() {
     }
   }
 
+  async function loadTemplates() {
+    try {
+      const res = await fetch('/api/ticket-templates');
+      const json = await res.json();
+
+      if (res.ok) {
+        setTemplates(json.data || []);
+      }
+    } catch {
+      // Templates sind optional, daher hier bewusst still
+    }
+  }
+
   function updateNewTicket(key, value) {
     setNewTicket((prev) => ({
       ...prev,
@@ -67,13 +84,26 @@ export default function InternTicketsBoardPage() {
     }));
   }
 
+  function toggleAssignedUser(user) {
+    setNewTicket((prev) => {
+      const exists = prev.assigned_users.includes(user);
+
+      return {
+        ...prev,
+        assigned_users: exists
+          ? prev.assigned_users.filter((item) => item !== user)
+          : [...prev.assigned_users, user]
+      };
+    });
+  }
+
   async function createTicket(e) {
     e.preventDefault();
 
-    if (!newTicket.title.trim()) {
+    if (!selectedTemplate && !newTicket.title.trim()) {
       setStatusBox({
         type: 'error',
-        message: 'Bitte eine Überschrift für das Ticket eingeben.'
+        message: 'Bitte eine Überschrift für das Ticket eingeben oder eine Vorlage auswählen.'
       });
       return;
     }
@@ -82,23 +112,41 @@ export default function InternTicketsBoardPage() {
       setCreating(true);
       setStatusBox(null);
 
-      const res = await fetch('/api/tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kundennummer: newTicket.kundennummer,
-          title: newTicket.title,
-          description: newTicket.description,
-          category: newTicket.category || 'Allgemein',
-          priority: newTicket.priority,
-          created_by_type: 'employee',
-          created_by: 'Mitarbeiter',
-          assigned_to: newTicket.assigned_to,
-          due_date: newTicket.due_date || null
-        })
-      });
+      let res;
+      let json;
 
-      const json = await res.json();
+      if (selectedTemplate) {
+        res = await fetch('/api/ticket-from-template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_id: selectedTemplate,
+            kundennummer: newTicket.kundennummer,
+            assigned_to: newTicket.assigned_to
+          })
+        });
+
+        json = await res.json();
+      } else {
+        res = await fetch('/api/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kundennummer: newTicket.kundennummer,
+            title: newTicket.title,
+            description: newTicket.description,
+            category: newTicket.category || 'Allgemein',
+            priority: newTicket.priority,
+            created_by_type: 'employee',
+            created_by: 'Mitarbeiter',
+            assigned_to: newTicket.assigned_to,
+            assigned_users: newTicket.assigned_users,
+            due_date: newTicket.due_date || null
+          })
+        });
+
+        json = await res.json();
+      }
 
       if (!res.ok) {
         throw new Error(json?.message || 'Ticket konnte nicht erstellt werden.');
@@ -109,6 +157,7 @@ export default function InternTicketsBoardPage() {
         message: 'Ticket wurde erstellt.'
       });
 
+      setSelectedTemplate('');
       setNewTicket({
         kundennummer: '',
         title: '',
@@ -116,6 +165,7 @@ export default function InternTicketsBoardPage() {
         category: '',
         priority: 'normal',
         assigned_to: '',
+        assigned_users: [],
         due_date: ''
       });
 
@@ -188,8 +238,9 @@ export default function InternTicketsBoardPage() {
           <div style={badge}>Intern</div>
           <h1 style={title}>Tickets</h1>
           <p style={subtitle}>
-            Interne Tafelansicht für alle Tickets. Oben können neue Tickets erstellt werden.
-            Klicken Sie auf eine Karte, um die vollständige Ticketansicht zu öffnen.
+            Interne Tafelansicht für alle Tickets. Oben können neue Tickets mit
+            Hauptzuständigkeit, weiteren Beteiligten oder direkt aus einer Vorlage
+            erstellt werden.
           </p>
         </section>
 
@@ -201,6 +252,22 @@ export default function InternTicketsBoardPage() {
 
           <form onSubmit={createTicket} style={createForm}>
             <div style={formGrid}>
+              <div style={singleFieldWrap}>
+                <label style={labelStyle}>Vorlage auswählen</label>
+                <select
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Keine Vorlage</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div style={singleFieldWrap}>
                 <label style={labelStyle}>Kundennummer</label>
                 <input
@@ -220,6 +287,7 @@ export default function InternTicketsBoardPage() {
                   onChange={(e) => updateNewTicket('category', e.target.value)}
                   placeholder="z. B. Gründung, Lohn, Buchhaltung"
                   style={inputStyle}
+                  disabled={Boolean(selectedTemplate)}
                 />
               </div>
 
@@ -229,6 +297,7 @@ export default function InternTicketsBoardPage() {
                   value={newTicket.priority}
                   onChange={(e) => updateNewTicket('priority', e.target.value)}
                   style={inputStyle}
+                  disabled={Boolean(selectedTemplate)}
                 >
                   {priorityOptions.map((item) => (
                     <option key={item} value={item}>
@@ -239,14 +308,19 @@ export default function InternTicketsBoardPage() {
               </div>
 
               <div style={singleFieldWrap}>
-                <label style={labelStyle}>Zuständig</label>
-                <input
-                  type="text"
+                <label style={labelStyle}>Hauptzuständig</label>
+                <select
                   value={newTicket.assigned_to}
                   onChange={(e) => updateNewTicket('assigned_to', e.target.value)}
-                  placeholder="z. B. Erjon"
                   style={inputStyle}
-                />
+                >
+                  <option value="">Bitte wählen</option>
+                  {employeeOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={singleFieldWrap}>
@@ -256,6 +330,7 @@ export default function InternTicketsBoardPage() {
                   value={newTicket.due_date}
                   onChange={(e) => updateNewTicket('due_date', e.target.value)}
                   style={inputStyle}
+                  disabled={Boolean(selectedTemplate)}
                 />
               </div>
 
@@ -267,7 +342,27 @@ export default function InternTicketsBoardPage() {
                   onChange={(e) => updateNewTicket('title', e.target.value)}
                   placeholder="Kurze Überschrift für das Ticket"
                   style={inputStyle}
+                  disabled={Boolean(selectedTemplate)}
                 />
+              </div>
+
+              <div style={singleFieldWrapFull}>
+                <label style={labelStyle}>Weitere Beteiligte</label>
+                <div style={chipWrap}>
+                  {employeeOptions.map((user) => {
+                    const selected = newTicket.assigned_users.includes(user);
+                    return (
+                      <button
+                        key={user}
+                        type="button"
+                        onClick={() => toggleAssignedUser(user)}
+                        style={chipButton(selected)}
+                      >
+                        {user}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div style={singleFieldWrapFull}>
@@ -277,6 +372,7 @@ export default function InternTicketsBoardPage() {
                   onChange={(e) => updateNewTicket('description', e.target.value)}
                   placeholder="Problem, Anfrage oder Aufgabe beschreiben"
                   style={textareaStyle}
+                  disabled={Boolean(selectedTemplate)}
                 />
               </div>
             </div>
@@ -284,7 +380,8 @@ export default function InternTicketsBoardPage() {
             <div style={createFooter}>
               <div style={footerHint}>
                 Intern erstellte Tickets werden im Kundenstatus direkt als
-                <strong> In Bearbeitung</strong> angelegt.
+                <strong> In Bearbeitung</strong> angelegt. Wird eine Vorlage gewählt,
+                werden Ticketdaten und Aufgaben automatisch erzeugt.
               </div>
 
               <button type="submit" style={submitButton} disabled={creating}>
@@ -393,10 +490,12 @@ export default function InternTicketsBoardPage() {
                           </div>
 
                           <div style={ticketTitle}>{ticket.title}</div>
-
                           <div style={ticketMeta}>Mandant: {ticket.kundennummer || '—'}</div>
                           <div style={ticketMeta}>Kategorie: {ticket.category || '—'}</div>
-                          <div style={ticketMeta}>Zuständig: {ticket.assigned_to || '—'}</div>
+                          <div style={ticketMeta}>Hauptzuständig: {ticket.assigned_to || '—'}</div>
+                          <div style={ticketMeta}>
+                            Beteiligte: {(ticket.assigned_users || []).join(', ') || '—'}
+                          </div>
                           <div style={ticketMeta}>
                             Fällig: {ticket.due_date ? formatDate(ticket.due_date) : '—'}
                           </div>
@@ -412,6 +511,19 @@ export default function InternTicketsBoardPage() {
       </div>
     </main>
   );
+}
+
+function chipButton(selected) {
+  return {
+    padding: '10px 12px',
+    borderRadius: '999px',
+    border: selected ? '1px solid #8c6b43' : '1px solid #d0d5dd',
+    background: selected ? '#8c6b43' : '#fff',
+    color: selected ? '#fff' : '#344054',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer'
+  };
 }
 
 function priorityBadge(priority) {
@@ -495,6 +607,12 @@ const singleFieldWrapFull = {
   display: 'grid',
   gap: '8px',
   gridColumn: '1 / -1'
+};
+
+const chipWrap = {
+  display: 'flex',
+  gap: '10px',
+  flexWrap: 'wrap'
 };
 
 const createFooter = {
