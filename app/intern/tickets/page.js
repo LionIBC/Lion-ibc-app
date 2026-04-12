@@ -1,39 +1,75 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react'; import { useRouter } from 'next/navigation';
 
-const boardColumns = [
-  { key: 'neu', label: 'Neu' },
-  { key: 'zugewiesen', label: 'Zugewiesen' },
-  { key: 'in_bearbeitung', label: 'In Bearbeitung' },
-  { key: 'wartet_auf_kunde', label: 'Wartet auf Kunde' },
-  { key: 'wartet_intern', label: 'Wartet intern' },
-  { key: 'erledigt', label: 'Erledigt' } ];
-
-const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch']; 
 const employeeOptions = [
   'Erjon Godeni',
   'Silvana Sabellek',
   'Klaudia Junske',
   'Jana Junske',
   'Stefan Leiste',
+  'Khaoula Sahel',
+  'Jennifer Enter Pineker',
   'Hasan Godeni'
 ];
 
-export default function InternTicketsBoardPage() {
+const baseColumns = [
+  { key: 'neu', label: 'Neu' },
+  { key: 'zugewiesen', label: 'Zugewiesen' },
+  { key: 'in_bearbeitung', label: 'In Bearbeitung' },
+  { key: 'wartet_auf_kunde', label: 'Wartet auf Kunde' },
+  { key: 'erledigt', label: 'Erledigt' } ];
+
+function formatDate(dateValue) {
+  if (!dateValue) return '';
+  try {
+    return new Date(dateValue).toLocaleDateString('de-DE');
+  } catch {
+    return '';
+  }
+}
+
+function formatDateTimeLocal(dateValue) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase(); }
+
+function getTicketColumnKey(ticket) {
+  if (ticket?.custom_status) {
+    return `custom:${ticket.custom_status}`;
+  }
+
+  return ticket?.internal_status || 'neu'; }
+
+function getTicketCustomerLabel(ticket) {
+  return (
+    ticket?.customer_name ||
+    ticket?.mandant_name ||
+    ticket?.kundennummer ||
+    'Ohne Mandant'
+  );
+}
+
+export default function TicketsPage() {
+  const router = useRouter();
+
   const [tickets, setTickets] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
+
+  const [filterKundennummer, setFilterKundennummer] = useState('');
+  const [filterAssignedTo, setFilterAssignedTo] = useState('');
+
   const [creating, setCreating] = useState(false);
-
-  const [kundennummerFilter, setKundennummerFilter] = useState('');
-  const [assignedToFilter, setAssignedToFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-
-  const [selectedTemplate, setSelectedTemplate] = useState('');
   const [newTicket, setNewTicket] = useState({
+    template_id: '',
     kundennummer: '',
     title: '',
     description: '',
@@ -41,77 +77,79 @@ export default function InternTicketsBoardPage() {
     priority: 'normal',
     assigned_to: '',
     assigned_users: [],
-    due_date: ''
+    due_date: '',
+    appointment_date: '',
+    custom_status: ''
   });
 
   useEffect(() => {
-    loadTickets();
-    loadTemplates();
+    loadPage();
   }, []);
 
-  async function loadTickets() {
+  async function loadPage() {
     try {
       setLoading(true);
       setStatusBox(null);
 
-      const res = await fetch('/api/tickets');
-      const json = await res.json();
+      const [ticketsRes, templatesRes] = await Promise.all([
+        fetch('/api/tickets'),
+        fetch('/api/ticket-templates').catch(() => null)
+      ]);
 
-      if (!res.ok) {
-        throw new Error(json?.message || 'Tickets konnten nicht geladen werden.');
+      const ticketsJson = await ticketsRes.json();
+
+      if (!ticketsRes.ok) {
+        throw new Error(ticketsJson?.message || 'Tickets konnten nicht geladen werden.');
       }
 
-      setTickets(json.data || []);
+      setTickets(Array.isArray(ticketsJson?.data) ? ticketsJson.data : []);
+
+      if (templatesRes) {
+        try {
+          const templatesJson = await templatesRes.json();
+          if (templatesRes.ok) {
+            setTemplates(Array.isArray(templatesJson?.data) ? templatesJson.data : []);
+          }
+        } catch {
+          setTemplates([]);
+        }
+      }
     } catch (error) {
       setStatusBox({
         type: 'error',
-        message: error.message || 'Tickets konnten nicht geladen werden.'
+        message: error.message || 'Seite konnte nicht geladen werden.'
       });
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadTemplates() {
-    try {
-      const res = await fetch('/api/ticket-templates');
-      const json = await res.json();
-
-      if (res.ok) {
-        setTemplates(json.data || []);
-      }
-    } catch {
-      // Templates sind optional, daher hier bewusst still
-    }
-  }
-
-  function updateNewTicket(key, value) {
+  function updateNewTicketField(key, value) {
     setNewTicket((prev) => ({
       ...prev,
       [key]: value
     }));
   }
 
-  function toggleAssignedUser(user) {
+  function toggleNewTicketAssignedUser(user) {
     setNewTicket((prev) => {
-      const exists = prev.assigned_users.includes(user);
+      const list = Array.isArray(prev.assigned_users) ? prev.assigned_users : [];
+      const exists = list.includes(user);
 
       return {
         ...prev,
         assigned_users: exists
-          ? prev.assigned_users.filter((item) => item !== user)
-          : [...prev.assigned_users, user]
+          ? list.filter((item) => item !== user)
+          : [...list, user]
       };
     });
   }
 
-  async function createTicket(e) {
-    e.preventDefault();
-
-    if (!selectedTemplate && !newTicket.title.trim()) {
+  async function createTicket() {
+    if (!newTicket.title.trim()) {
       setStatusBox({
         type: 'error',
-        message: 'Bitte eine Überschrift für das Ticket eingeben oder eine Vorlage auswählen.'
+        message: 'Bitte eine Überschrift eintragen.'
       });
       return;
     }
@@ -120,41 +158,27 @@ export default function InternTicketsBoardPage() {
       setCreating(true);
       setStatusBox(null);
 
-      let res;
-      let json;
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: newTicket.template_id || '',
+          kundennummer: newTicket.kundennummer || '',
+          title: newTicket.title || '',
+          description: newTicket.description || '',
+          category: newTicket.category || '',
+          priority: newTicket.priority || 'normal',
+          assigned_to: newTicket.assigned_to || '',
+          assigned_users: newTicket.assigned_users || [],
+          due_date: newTicket.due_date || null,
+          appointment_date: newTicket.appointment_date || null,
+          custom_status: newTicket.custom_status || '',
+          created_by_type: 'employee',
+          created_by: 'Mitarbeiter'
+        })
+      });
 
-      if (selectedTemplate) {
-        res = await fetch('/api/ticket-from-template', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            template_id: selectedTemplate,
-            kundennummer: newTicket.kundennummer,
-            assigned_to: newTicket.assigned_to
-          })
-        });
-
-        json = await res.json();
-      } else {
-        res = await fetch('/api/tickets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kundennummer: newTicket.kundennummer,
-            title: newTicket.title,
-            description: newTicket.description,
-            category: newTicket.category || 'Allgemein',
-            priority: newTicket.priority,
-            created_by_type: 'employee',
-            created_by: 'Mitarbeiter',
-            assigned_to: newTicket.assigned_to,
-            assigned_users: newTicket.assigned_users,
-            due_date: newTicket.due_date || null
-          })
-        });
-
-        json = await res.json();
-      }
+      const json = await res.json();
 
       if (!res.ok) {
         throw new Error(json?.message || 'Ticket konnte nicht erstellt werden.');
@@ -165,8 +189,8 @@ export default function InternTicketsBoardPage() {
         message: 'Ticket wurde erstellt.'
       });
 
-      setSelectedTemplate('');
       setNewTicket({
+        template_id: '',
         kundennummer: '',
         title: '',
         description: '',
@@ -174,10 +198,18 @@ export default function InternTicketsBoardPage() {
         priority: 'normal',
         assigned_to: '',
         assigned_users: [],
-        due_date: ''
+        due_date: '',
+        appointment_date: '',
+        custom_status: ''
       });
 
-      await loadTickets();
+      const createdId = json?.data?.id || json?.ticket?.id || '';
+
+      await loadPage();
+
+      if (createdId) {
+        router.push(`/intern/tickets/${createdId}`);
+      }
     } catch (error) {
       setStatusBox({
         type: 'error',
@@ -188,358 +220,323 @@ export default function InternTicketsBoardPage() {
     }
   }
 
-  const filteredTickets = useMemo(() => {
-    return tickets.filter((ticket) => {
-      const kundennummerMatch =
-        !kundennummerFilter.trim() ||
-        String(ticket.kundennummer || '')
-          .toLowerCase()
-          .includes(kundennummerFilter.trim().toLowerCase());
+  const visibleTickets = useMemo(() => {
+    return (tickets || []).filter((ticket) => {
+      const kundennummerOk = !filterKundennummer.trim()
+        ? true
+        : normalizeText(ticket.kundennummer).includes(normalizeText(filterKundennummer));
 
-      const assignedToMatch =
-        !assignedToFilter.trim() ||
-        String(ticket.assigned_to || '')
-          .toLowerCase()
-          .includes(assignedToFilter.trim().toLowerCase());
+      const assignedToOk = !filterAssignedTo.trim()
+        ? true
+        : normalizeText(ticket.assigned_to).includes(normalizeText(filterAssignedTo));
 
-      const categoryMatch =
-        !categoryFilter.trim() ||
-        String(ticket.category || '')
-          .toLowerCase()
-          .includes(categoryFilter.trim().toLowerCase());
-
-      return kundennummerMatch && assignedToMatch && categoryMatch;
+      return kundennummerOk && assignedToOk;
     });
-  }, [tickets, kundennummerFilter, assignedToFilter, categoryFilter]);
+  }, [tickets, filterKundennummer, filterAssignedTo]);
 
-  const groupedTickets = useMemo(() => {
-    const groups = {};
-    boardColumns.forEach((column) => {
-      groups[column.key] = [];
-    });
+  const customColumns = useMemo(() => {
+    const labels = [];
 
-    filteredTickets.forEach((ticket) => {
-      const key = ticket.internal_status || 'neu';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(ticket);
-    });
+    for (const ticket of visibleTickets) {
+      const value = String(ticket?.custom_status || '').trim();
+      if (value && !labels.includes(value)) {
+        labels.push(value);
+      }
+    }
 
-    return groups;
-  }, [filteredTickets]);
+    return labels.map((label) => ({
+      key: `custom:${label}`,
+      label
+    }));
+  }, [visibleTickets]);
 
-  const stats = useMemo(() => {
-    return {
-      total: tickets.length,
-      neu: tickets.filter((item) => item.internal_status === 'neu').length,
-      inBearbeitung: tickets.filter((item) => item.internal_status === 'in_bearbeitung').length,
-      wartet: tickets.filter((item) =>
-        ['wartet_auf_kunde', 'wartet_intern'].includes(item.internal_status)
-      ).length,
-      erledigt: tickets.filter((item) => item.internal_status === 'erledigt').length
-    };
-  }, [tickets]);
+  const columns = useMemo(() => {
+    return [
+      baseColumns[0],
+      baseColumns[1],
+      baseColumns[2],
+      ...customColumns,
+      baseColumns[3],
+      baseColumns[4]
+    ];
+  }, [customColumns]);
+
+  const ticketCountByColumn = useMemo(() => {
+    const result = {};
+
+    for (const column of columns) {
+      result[column.key] = visibleTickets.filter(
+        (ticket) => getTicketColumnKey(ticket) === column.key
+      ).length;
+    }
+
+    return result;
+  }, [columns, visibleTickets]);
+
+  const totalCount = visibleTickets.length;
+  const neuCount = visibleTickets.filter((ticket) => getTicketColumnKey(ticket) === 'neu').length;
+  const inBearbeitungCount = visibleTickets.filter((ticket) => getTicketColumnKey(ticket) === 'in_bearbeitung').length;
+
+  if (loading) {
+    return <main style={wrap}><div style={container}>Lade Tickets…</div></main>;
+  }
 
   return (
-    <main style={pageWrap}>
-      <div style={pageInner}>
+    <main style={wrap}>
+      <div style={container}>
         <section style={heroCard}>
           <div style={badge}>Intern</div>
-          <h1 style={title}>Tickets</h1>
-          <p style={subtitle}>
-            Interne Tafelansicht für alle Tickets. Oben können neue Tickets mit
-            Hauptzuständigkeit, weiteren Beteiligten oder direkt aus einer Vorlage
-            erstellt werden.
+          <h1 style={mainTitle}>Tickets</h1>
+          <p style={heroText}>
+            Interne Tafelansicht für alle Tickets. Oben können neue Tickets mit Hauptzuständigkeit,
+            weiteren Beteiligten und optional einer Vorlage erstellt werden.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
         {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
-        <section style={createCard}>
-          <h2 style={sectionTitleNoMargin}>Neues Ticket erstellen</h2>
+        <section style={card}>
+          <h2 style={sectionTitle}>Neues Ticket erstellen</h2>
 
-          <form onSubmit={createTicket} style={createForm}>
-            <div style={formGrid}>
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Vorlage auswählen</label>
-                <select
-                  value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">Keine Vorlage</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Kundennummer</label>
-                <input
-                  type="text"
-                  value={newTicket.kundennummer}
-                  onChange={(e) => updateNewTicket('kundennummer', e.target.value)}
-                  placeholder="z. B. K-10023"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Kategorie</label>
-                <input
-                  type="text"
-                  value={newTicket.category}
-                  onChange={(e) => updateNewTicket('category', e.target.value)}
-                  placeholder="z. B. Gründung, Lohn, Buchhaltung"
-                  style={inputStyle}
-                  disabled={Boolean(selectedTemplate)}
-                />
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Priorität</label>
-                <select
-                  value={newTicket.priority}
-                  onChange={(e) => updateNewTicket('priority', e.target.value)}
-                  style={inputStyle}
-                  disabled={Boolean(selectedTemplate)}
-                >
-                  {priorityOptions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Hauptzuständig</label>
-                <select
-                  value={newTicket.assigned_to}
-                  onChange={(e) => updateNewTicket('assigned_to', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">Bitte wählen</option>
-                  {employeeOptions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={singleFieldWrap}>
-                <label style={labelStyle}>Fällig bis</label>
-                <input
-                  type="date"
-                  value={newTicket.due_date}
-                  onChange={(e) => updateNewTicket('due_date', e.target.value)}
-                  style={inputStyle}
-                  disabled={Boolean(selectedTemplate)}
-                />
-              </div>
-
-              <div style={singleFieldWrapWide}>
-                <label style={labelStyle}>Überschrift</label>
-                <input
-                  type="text"
-                  value={newTicket.title}
-                  onChange={(e) => updateNewTicket('title', e.target.value)}
-                  placeholder="Kurze Überschrift für das Ticket"
-                  style={inputStyle}
-                  disabled={Boolean(selectedTemplate)}
-                />
-              </div>
-
-              <div style={singleFieldWrapFull}>
-                <label style={labelStyle}>Weitere Beteiligte</label>
-                <div style={chipWrap}>
-                  {employeeOptions.map((user) => {
-                    const selected = newTicket.assigned_users.includes(user);
-                    return (
-                      <button
-                        key={user}
-                        type="button"
-                        onClick={() => toggleAssignedUser(user)}
-                        style={chipButton(selected)}
-                      >
-                        {user}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={singleFieldWrapFull}>
-                <label style={labelStyle}>Beschreibung</label>
-                <textarea
-                  value={newTicket.description}
-                  onChange={(e) => updateNewTicket('description', e.target.value)}
-                  placeholder="Problem, Anfrage oder Aufgabe beschreiben"
-                  style={textareaStyle}
-                  disabled={Boolean(selectedTemplate)}
-                />
-              </div>
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>Vorlage auswählen</label>
+              <select
+                value={newTicket.template_id}
+                onChange={(e) => updateNewTicketField('template_id', e.target.value)}
+                style={input}
+              >
+                <option value="">Keine Vorlage</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name || template.title || 'Vorlage'}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div style={createFooter}>
-              <div style={footerHint}>
-                Intern erstellte Tickets werden im Kundenstatus direkt als
-                <strong> In Bearbeitung</strong> angelegt. Wird eine Vorlage gewählt,
-                werden Ticketdaten und Aufgaben automatisch erzeugt.
-              </div>
-
-              <button type="submit" style={submitButton} disabled={creating}>
-                {creating ? 'Ticket wird erstellt…' : 'Ticket erstellen'}
-              </button>
+            <div style={field}>
+              <label style={label}>Kundennummer</label>
+              <input
+                value={newTicket.kundennummer}
+                onChange={(e) => updateNewTicketField('kundennummer', e.target.value)}
+                placeholder="z. B. K-10023"
+                style={input}
+              />
             </div>
-          </form>
-        </section>
 
-        <section style={statsGrid}>
-          <div style={statCard}>
-            <div style={statLabel}>Gesamt</div>
-            <div style={statValue}>{stats.total}</div>
-          </div>
-          <div style={statCard}>
-            <div style={statLabel}>Neu</div>
-            <div style={statValue}>{stats.neu}</div>
-          </div>
-          <div style={statCard}>
-            <div style={statLabel}>In Bearbeitung</div>
-            <div style={statValue}>{stats.inBearbeitung}</div>
-          </div>
-          <div style={statCard}>
-            <div style={statLabel}>Wartend</div>
-            <div style={statValue}>{stats.wartet}</div>
-          </div>
-               <div style={field}>
-  <label style={label}>Zusätzlicher Status</label>
-  <select
-    value={ticket.custom_status || ''}
-    onChange={(e) => updateTicketField('custom_status', e.target.value)}
-    style={input}
-  >
-    <option value="">Kein Zusatzstatus</option>
-    <option value="Warten auf Behörden">Warten auf Behörden</option>
-    <option value="Notartermin">Notartermin</option>
-    <option value="Prüfung Steuerberater">Prüfung Steuerberater</option>
-    <option value="Unterlagen unvollständig">Unterlagen unvollständig</option>
-  </select>
-</div>
- 
-          <div style={statCard}>
-            <div style={statLabel}>Erledigt</div>
-            <div style={statValue}>{stats.erledigt}</div>
-          </div>
-        </section>
+            <div style={field}>
+              <label style={label}>Kategorie</label>
+              <input
+                value={newTicket.category}
+                onChange={(e) => updateNewTicketField('category', e.target.value)}
+                placeholder="z. B. Neukundenaufnahme"
+                style={input}
+              />
+            </div>
 
-        <section style={filterCard}>
-          <div style={filterHeader}>
-            <h2 style={sectionTitleNoMargin}>Filter</h2>
-            <button type="button" onClick={loadTickets} style={secondaryButton}>
-              Aktualisieren
+            <div style={field}>
+              <label style={label}>Priorität</label>
+              <select
+                value={newTicket.priority}
+                onChange={(e) => updateNewTicketField('priority', e.target.value)}
+                style={input}
+              >
+                <option value="niedrig">niedrig</option>
+                <option value="normal">normal</option>
+                <option value="hoch">hoch</option>
+                <option value="kritisch">kritisch</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Hauptzuständig</label>
+              <select
+                value={newTicket.assigned_to}
+                onChange={(e) => updateNewTicketField('assigned_to', e.target.value)}
+                style={input}
+              >
+                <option value="">Bitte wählen</option>
+                {employeeOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Fällig bis</label>
+              <input
+                type="date"
+                value={newTicket.due_date}
+                onChange={(e) => updateNewTicketField('due_date', e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Termin</label>
+              <input
+                type="datetime-local"
+                value={newTicket.appointment_date}
+                onChange={(e) => updateNewTicketField('appointment_date', e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Zusätzlicher Bearbeitungsstatus</label>
+              <input
+                value={newTicket.custom_status}
+                onChange={(e) => updateNewTicketField('custom_status', e.target.value)}
+                placeholder="leer lassen oder später z. B. Warten auf Behörden"
+                style={input}
+              />
+            </div>
+
+            <div style={{ ...field, gridColumn: 'span 3' }}>
+              <label style={label}>Überschrift</label>
+              <input
+                value={newTicket.title}
+                onChange={(e) => updateNewTicketField('title', e.target.value)}
+                placeholder="Kurze Überschrift für das Ticket"
+                style={input}
+              />
+            </div>
+          </div>
+
+          <div style={{ ...field, marginTop: 12 }}>
+            <label style={label}>Weitere Beteiligte</label>
+            <div style={chipWrap}>
+              {employeeOptions.map((user) => {
+                const selected = (newTicket.assigned_users || []).includes(user);
+                return (
+                  <button
+                    key={user}
+                    type="button"
+                    onClick={() => toggleNewTicketAssignedUser(user)}
+                    style={chipButton(selected)}
+                  >
+                    {user}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ ...field, marginTop: 16 }}>
+            <label style={label}>Beschreibung</label>
+            <textarea
+              value={newTicket.description}
+              onChange={(e) => updateNewTicketField('description', e.target.value)}
+              placeholder="Problem, Anfrage oder Aufgabe beschreiben"
+              style={textarea}
+            />
+          </div>
+
+          <p style={hintText}>
+            Intern erstellte Tickets werden im Kundenstatus direkt als <strong>In Bearbeitung</strong> angelegt.
+            Wird eine Vorlage gewählt, werden Ticketdaten und Aufgaben automatisch erzeugt.
+            Der zusätzliche Bearbeitungsstatus kann leer bleiben und später im Arbeitsalltag gesetzt werden.
+          </p>
+
+          <div style={row}>
+            <button onClick={createTicket} style={saveButton} disabled={creating}>
+              {creating ? 'Erstellt…' : 'Ticket erstellen'}
             </button>
           </div>
+        </section>
+
+        <section style={statsRow}>
+          <div style={statCard}>
+            <div style={statLabel}>Gesamt</div>
+            <div style={statValue}>{totalCount}</div>
+          </div>
+
+          <div style={statCard}>
+            <div style={statLabel}>Neu</div>
+            <div style={statValue}>{neuCount}</div>
+          </div>
+
+          <div style={statCard}>
+            <div style={statLabel}>In Bearbeitung</div>
+            <div style={statValue}>{inBearbeitungCount}</div>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Filter</h2>
 
           <div style={filterGrid}>
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Kundennummer</label>
+            <div style={field}>
+              <label style={label}>Kundennummer</label>
               <input
-                type="text"
-                value={kundennummerFilter}
-                onChange={(e) => setKundennummerFilter(e.target.value)}
+                value={filterKundennummer}
+                onChange={(e) => setFilterKundennummer(e.target.value)}
                 placeholder="z. B. K-10023"
-                style={inputStyle}
+                style={input}
               />
             </div>
 
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Zuständig</label>
+            <div style={field}>
+              <label style={label}>Zuständig</label>
               <input
-                type="text"
-                value={assignedToFilter}
-                onChange={(e) => setAssignedToFilter(e.target.value)}
+                value={filterAssignedTo}
+                onChange={(e) => setFilterAssignedTo(e.target.value)}
                 placeholder="z. B. Erjon"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={singleFieldWrap}>
-              <label style={labelStyle}>Kategorie</label>
-              <input
-                type="text"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                placeholder="z. B. Lohn"
-                style={inputStyle}
+                style={input}
               />
             </div>
           </div>
         </section>
 
-        {loading ? (
-          <div style={infoBox}>Tickets werden geladen…</div>
-        ) : (
-          <section style={boardSection}>
-            <div style={boardWrap}>
-              {boardColumns.map((column) => (
-                <div key={column.key} style={columnCard}>
-                  <div style={columnHeader}>
-                    <div style={columnTitle}>{column.label}</div>
-                    <div style={columnCount}>
-                      {groupedTickets[column.key]?.length || 0}
-                    </div>
-                  </div>
+        <section style={boardWrap}>
+          {columns.map((column) => {
+            const columnTickets = visibleTickets.filter(
+              (ticket) => getTicketColumnKey(ticket) === column.key
+            );
 
-                  <div style={columnBody}>
-                    {(groupedTickets[column.key] || []).length === 0 ? (
-                      <div style={emptyCard}>Keine Tickets</div>
-                    ) : (
-                      groupedTickets[column.key].map((ticket) => (
-                        <Link
-                          key={ticket.id}
-                          href={`/intern/tickets/${ticket.id}`}
-                          style={ticketCard}
-                        >
-                          <div style={ticketCardTop}>
-                            <span style={ticketNumber}>{ticket.ticket_number || '—'}</span>
-                            <span style={priorityBadge(ticket.priority)}>
-                              {ticket.priority || 'normal'}
-                            </span>
-                          </div>
-
-                         <div style={{
-  padding: 12,
-  borderRadius: 12,
-  background: '#fff',
-  border: '1px solid #eee',
-  cursor: 'pointer'
-}}>
-  <div style={{ fontWeight: 700 }}>
-    {ticket.customer_name || ticket.kundennummer}
-  </div>
-
-  <div style={{ fontSize: 14, color: '#666' }}>
-    {ticket.title}
-  </div>
-</div>
-
-                          <div style={ticketMeta}>
-                            Fällig: {ticket.due_date ? formatDate(ticket.due_date) : '—'}
-                          </div>
-                        </Link>
-                      ))
-                    )}
-                  </div>
+            return (
+              <div key={column.key} style={boardColumn}>
+                <div style={columnHeader}>
+                  <span style={columnTitle}>{column.label}</span>
+                  <span style={columnCount}>{ticketCountByColumn[column.key] || 0}</span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+
+                <div style={columnBody}>
+                  {columnTickets.length === 0 ? (
+                    <div style={emptyCard}>Keine Tickets</div>
+                  ) : (
+                    columnTickets.map((ticket) => (
+                      <button
+                        key={ticket.id}
+                        type="button"
+                        onClick={() => router.push(`/intern/tickets/${ticket.id}`)}
+                        style={ticketCardButton}
+                      >
+                        <div style={ticketCardCustomer}>
+                          {getTicketCustomerLabel(ticket)}
+                        </div>
+
+                        <div style={ticketCardTitle}>
+                          {ticket.title || 'Ohne Titel'}
+                        </div>
+
+                        {ticket.appointment_date ? (
+                          <div style={ticketMiniMeta}>
+                            Termin: {formatDate(ticket.appointment_date)}
+                          </div>
+                        ) : null}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </section>
       </div>
     </main>
   );
@@ -558,361 +555,258 @@ function chipButton(selected) {
   };
 }
 
-function priorityBadge(priority) {
-  if (priority === 'kritisch') return badgeStyle('#fef3f2', '#b42318');
-  if (priority === 'hoch') return badgeStyle('#fff7ed', '#c4320a');
-  if (priority === 'niedrig') return badgeStyle('#f2f4f7', '#667085');
-  return badgeStyle('#eff8ff', '#175cd3'); }
-
-function badgeStyle(background, color) {
-  return {
-    padding: '5px 10px',
-    borderRadius: '999px',
-    background,
-    color,
-    fontSize: '12px',
-    fontWeight: '700',
-    textTransform: 'uppercase'
-  };
-}
-
-function formatDate(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('de-DE');
-}
-
-const pageWrap = {
-  minHeight: '100vh',
-  background: 'linear-gradient(to bottom, #f7f5ef 0%, #f3f0e8 100%)',
-  padding: '32px 20px 60px'
+const wrap = {
+  padding: 30,
+  background: '#f7f5ef',
+  minHeight: '100vh'
 };
 
-const pageInner = {
-  maxWidth: '1380px',
-  margin: '0 auto'
+const container = {
+  maxWidth: 1240,
+  margin: '0 auto',
+  display: 'grid',
+  gap: 20
 };
 
 const heroCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '24px',
-  padding: '34px 36px',
-  boxShadow: '0 10px 30px rgba(16, 24, 40, 0.05)',
-  marginBottom: '22px'
-};
-
-const createCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '22px',
-  padding: '26px 28px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
-  marginBottom: '18px'
-};
-
-const createForm = {
-  marginTop: '18px',
-  display: 'grid',
-  gap: '18px'
-};
-
-const formGrid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, 1fr)',
-  gap: '16px'
-};
-
-const singleFieldWrap = {
-  display: 'grid',
-  gap: '8px'
-};
-
-const singleFieldWrapWide = {
-  display: 'grid',
-  gap: '8px',
-  gridColumn: 'span 2'
-};
-
-const singleFieldWrapFull = {
-  display: 'grid',
-  gap: '8px',
-  gridColumn: '1 / -1'
-};
-
-const chipWrap = {
-  display: 'flex',
-  gap: '10px',
-  flexWrap: 'wrap'
-};
-
-const createFooter = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '20px',
-  flexWrap: 'wrap'
-};
-
-const filterCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '22px',
-  padding: '26px 28px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
-  marginBottom: '18px'
-};
-
-const boardSection = {
-  marginBottom: '18px'
-};
-
-const boardWrap = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(6, minmax(220px, 1fr))',
-  gap: '14px',
-  alignItems: 'start',
-  overflowX: 'auto'
-};
-
-const columnCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '20px',
-  padding: '16px',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)',
-  minHeight: '420px'
-};
-
-const columnHeader = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '10px',
-  marginBottom: '14px'
-};
-
-const columnTitle = {
-  fontSize: '16px',
-  fontWeight: '700',
-  color: '#101828'
-};
-
-const columnCount = {
-  minWidth: '28px',
-  height: '28px',
-  borderRadius: '999px',
-  background: '#f2f4f7',
-  color: '#344054',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '12px',
-  fontWeight: '700'
-};
-
-const columnBody = {
-  display: 'grid',
-  gap: '12px'
-};
-
-const emptyCard = {
-  border: '1px dashed #d0d5dd',
-  borderRadius: '14px',
-  padding: '16px',
-  color: '#667085',
-  fontSize: '14px',
-  background: '#fcfcfd'
-};
-
-const ticketCard = {
-  display: 'block',
-  width: '100%',
-  textAlign: 'left',
-  border: '1px solid #eceff3',
-  borderRadius: '16px',
-  padding: '14px',
-  background: '#fcfcfd',
-  cursor: 'pointer',
-  textDecoration: 'none'
-};
-
-const ticketCardTop = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '10px',
-  marginBottom: '10px'
-};
-
-const ticketNumber = {
-  fontSize: '12px',
-  fontWeight: '700',
-  color: '#667085'
-};
-
-const ticketTitle = {
-  fontSize: '15px',
-  fontWeight: '700',
-  color: '#101828',
-  marginBottom: '10px',
-  lineHeight: 1.5
-};
-
-const ticketMeta = {
-  fontSize: '13px',
-  color: '#667085',
-  lineHeight: 1.6
-};
-
-const badge = {
-  display: 'inline-block',
-  padding: '8px 14px',
-  borderRadius: '999px',
-  border: '1px solid #d8d2c6',
-  background: '#faf8f3',
-  color: '#5f5a4f',
-  fontSize: '14px',
-  fontWeight: '600',
-  marginBottom: '18px'
-};
-
-const title = {
-  fontSize: '38px',
-  fontWeight: '700',
-  color: '#101828',
-  margin: '0 0 10px'
-};
-
-const subtitle = {
-  fontSize: '16px',
-  lineHeight: 1.75,
-  color: '#475467',
-  maxWidth: '900px',
-  margin: 0
-};
-
-const statsGrid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, 1fr)',
-  gap: '16px',
-  marginBottom: '18px'
-};
-
-const statCard = {
-  background: '#ffffff',
-  border: '1px solid #eee7da',
-  borderRadius: '18px',
-  padding: '20px',
+  background: '#fff',
+  padding: 28,
+  borderRadius: 20,
+  border: '1px solid #e7e1d6',
   boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
 };
 
-const statLabel = {
-  fontSize: '14px',
-  color: '#667085',
-  marginBottom: '8px'
+const badge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #ddd6c8',
+  color: '#6b5b45',
+  background: '#faf8f3',
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 12
 };
 
-const statValue = {
-  fontSize: '28px',
-  fontWeight: '700',
+const mainTitle = {
+  margin: 0,
+  fontSize: 30,
   color: '#101828'
 };
 
-const filterHeader = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '16px',
-  flexWrap: 'wrap',
-  marginBottom: '18px'
+const heroText = {
+  margin: '12px 0 0 0',
+  fontSize: 17,
+  color: '#475467',
+  lineHeight: 1.6
 };
 
-const sectionTitleNoMargin = {
-  fontSize: '24px',
-  fontWeight: '700',
-  color: '#101828',
-  margin: 0
+const card = {
+  background: '#fff',
+  padding: 24,
+  borderRadius: 18,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const sectionTitle = {
+  margin: '0 0 18px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const grid3 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 16
 };
 
 const filterGrid = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
-  gap: '16px'
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: 16
 };
 
-const labelStyle = {
-  fontSize: '14px',
-  fontWeight: '700',
+const field = {
+  display: 'grid',
+  gap: 8
+};
+
+const label = {
+  fontSize: 14,
+  fontWeight: 700,
   color: '#344054'
 };
 
-const inputStyle = {
+const input = {
   width: '100%',
-  padding: '12px 14px',
-  borderRadius: '12px',
+  padding: 12,
+  borderRadius: 12,
   border: '1px solid #d0d5dd',
-  fontSize: '14px',
-  background: '#fff',
-  color: '#101828',
-  boxSizing: 'border-box'
+  boxSizing: 'border-box',
+  background: '#fff'
 };
 
-const textareaStyle = {
+const textarea = {
   width: '100%',
-  minHeight: '120px',
-  padding: '12px 14px',
-  borderRadius: '12px',
+  minHeight: 110,
+  padding: 12,
+  borderRadius: 12,
   border: '1px solid #d0d5dd',
-  fontSize: '14px',
-  background: '#fff',
-  color: '#101828',
-  resize: 'vertical',
   boxSizing: 'border-box',
+  resize: 'vertical',
+  background: '#fff'
+};
+
+const chipWrap = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap'
+};
+
+const hintText = {
+  marginTop: 16,
+  fontSize: 14,
+  color: '#667085',
   lineHeight: 1.6
 };
 
-const secondaryButton = {
-  padding: '11px 14px',
-  background: '#ffffff',
-  color: '#101828',
-  borderRadius: '12px',
-  border: '1px solid #d0d5dd',
-  fontWeight: '600',
-  fontSize: '14px',
-  cursor: 'pointer'
+const row = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 14,
+  flexWrap: 'wrap'
 };
 
-const submitButton = {
-  padding: '16px 22px',
-  borderRadius: '14px',
+const saveButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
   border: 'none',
   background: '#8c6b43',
   color: '#fff',
-  fontWeight: '700',
-  fontSize: '15px',
-  cursor: 'pointer',
-  boxShadow: '0 8px 18px rgba(140, 107, 67, 0.18)'
+  fontWeight: 700,
+  cursor: 'pointer'
 };
 
-const footerHint = {
-  fontSize: '14px',
-  lineHeight: 1.7,
+const statsRow = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 16
+};
+
+const statCard = {
+  background: '#fff',
+  padding: 20,
+  borderRadius: 18,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const statLabel = {
+  fontSize: 15,
   color: '#667085',
-  maxWidth: '760px'
+  marginBottom: 10
 };
 
-const infoBox = {
-  padding: '14px 16px',
-  borderRadius: '14px',
-  background: '#fffaeb',
-  border: '1px solid #fedf89',
-  color: '#b54708'
+const statValue = {
+  fontSize: 42,
+  lineHeight: 1,
+  fontWeight: 800,
+  color: '#101828'
+};
+
+const boardWrap = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 16,
+  alignItems: 'start'
+};
+
+const boardColumn = {
+  background: '#f2efe8',
+  borderRadius: 18,
+  padding: 12,
+  minHeight: 420,
+  border: '1px solid #e5dfd2'
+};
+
+const columnHeader = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 12,
+  padding: '4px 6px'
+};
+
+const columnTitle = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: '#101828'
+};
+
+const columnCount = {
+  minWidth: 24,
+  height: 24,
+  borderRadius: 999,
+  background: '#fff',
+  border: '1px solid #ddd6c8',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#6b5b45',
+  padding: '0 8px'
+};
+
+const columnBody = {
+  display: 'grid',
+  gap: 10
+};
+
+const emptyCard = {
+  padding: '14px 12px',
+  borderRadius: 14,
+  background: '#fff',
+  border: '1px dashed #d6d0c4',
+  color: '#98a2b3',
+  textAlign: 'center',
+  fontSize: 14
+};
+
+const ticketCardButton = {
+  width: '100%',
+  textAlign: 'left',
+  border: '1px solid #eceff3',
+  borderRadius: 14,
+  padding: 12,
+  background: '#fff',
+  cursor: 'pointer',
+  boxShadow: '0 2px 8px rgba(16, 24, 40, 0.04)'
+};
+
+const ticketCardCustomer = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: '#101828',
+  marginBottom: 6
+};
+
+const ticketCardTitle = {
+  fontSize: 14,
+  color: '#475467',
+  lineHeight: 1.4
+};
+
+const ticketMiniMeta = {
+  marginTop: 8,
+  fontSize: 12,
+  color: '#667085'
 };
 
 const errorBox = {
-  marginBottom: '16px',
   padding: '14px 16px',
   borderRadius: '14px',
   background: '#fef3f2',
@@ -921,7 +815,6 @@ const errorBox = {
 };
 
 const successBox = {
-  marginBottom: '16px',
   padding: '14px 16px',
   borderRadius: '14px',
   background: '#ecfdf3',
