@@ -21,7 +21,9 @@ function mapTicket(row) {
     created_by_type: row.created_by_type || 'customer',
     created_by: row.created_by || '',
     assigned_to: row.assigned_to || '',
+    assigned_users: row.assigned_users || [],
     due_date: row.due_date || null,
+    internal_notes: row.internal_notes || '',
     created_at: row.created_at || null,
     updated_at: row.updated_at || null
   };
@@ -30,7 +32,7 @@ function mapTicket(row) {
 function mapMessage(row) {
   return {
     id: row.id,
-    ticket_id: row.ticket_id,
+    ticket_id: row.ticket_id || '',
     message: row.message || '',
     author: row.author || '',
     author_type: row.author_type || '',
@@ -42,7 +44,7 @@ function mapMessage(row) {
 function mapTask(row) {
   return {
     id: row.id,
-    ticket_id: row.ticket_id,
+    ticket_id: row.ticket_id || '',
     title: row.title || '',
     is_done: Boolean(row.is_done),
     assigned_to: row.assigned_to || '',
@@ -55,7 +57,7 @@ function mapTask(row) {
 function mapAttachment(row) {
   return {
     id: row.id,
-    ticket_id: row.ticket_id,
+    ticket_id: row.ticket_id || '',
     file_path: row.file_path || '',
     original_name: row.original_name || '',
     mime_type: row.mime_type || '',
@@ -66,9 +68,51 @@ function mapAttachment(row) {
   };
 }
 
+async function addSignedUrlsToAttachments(attachments) {
+  const result = [];
+
+  for (const row of attachments || []) {
+    let signedUrl = null;
+    let downloadUrl = null;
+
+    if (row.file_path) {
+      const { data: openData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60);
+
+      const { data: downloadData } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(row.file_path, 60 * 60, {
+          download: row.original_name || true
+        });
+
+      signedUrl = openData?.signedUrl || null;
+      downloadUrl = downloadData?.signedUrl || null;
+    }
+
+    result.push({
+      ...mapAttachment(row),
+      signed_url: signedUrl,
+      download_url: downloadUrl
+    });
+  }
+
+  return result;
+}
+
 export async function GET(req, { params }) {
   try {
     const id = params.id;
+
+    if (!id) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Ticket-ID fehlt.'
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: ticketRow, error: ticketError } = await supabase
       .from('tickets')
@@ -104,13 +148,17 @@ export async function GET(req, { params }) {
     if (tasksResult.error) throw tasksResult.error;
     if (attachmentsResult.error) throw attachmentsResult.error;
 
+    const attachmentsWithUrls = await addSignedUrlsToAttachments(
+      attachmentsResult.data || []
+    );
+
     return Response.json({
       success: true,
       data: {
         ticket: mapTicket(ticketRow),
         messages: (messagesResult.data || []).map(mapMessage),
         tasks: (tasksResult.data || []).map(mapTask),
-        attachments: (attachmentsResult.data || []).map(mapAttachment)
+        attachments: attachmentsWithUrls
       }
     });
   } catch (error) {
@@ -129,6 +177,16 @@ export async function PATCH(req, { params }) {
     const id = params.id;
     const body = await req.json();
 
+    if (!id) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Ticket-ID fehlt.'
+        },
+        { status: 400 }
+      );
+    }
+
     const updatePayload = {
       updated_at: new Date().toISOString()
     };
@@ -140,13 +198,15 @@ export async function PATCH(req, { params }) {
     if (typeof body.internal_status === 'string') updatePayload.internal_status = body.internal_status;
     if (typeof body.customer_status === 'string') updatePayload.customer_status = body.customer_status;
     if (typeof body.assigned_to === 'string') updatePayload.assigned_to = body.assigned_to;
+    if (Array.isArray(body.assigned_users)) updatePayload.assigned_users = body.assigned_users;
+    if (typeof body.internal_notes === 'string') updatePayload.internal_notes = body.internal_notes;
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null;
 
     const { data, error } = await supabase
       .from('tickets')
       .update(updatePayload)
       .eq('id', id)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
@@ -173,6 +233,39 @@ export async function DELETE(req, { params }) {
   try {
     const id = params.id;
 
+    if (!id) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Ticket-ID fehlt.'
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: attachments, error: attachmentsError } = await supabase
+      .from('ticket_attachments')
+      .select('*')
+      .eq('ticket_id', id);
+
+    if (attachmentsError) {
+      throw attachmentsError;
+    }
+
+    const filePaths = (attachments || [])
+      .map((item) => item.file_path)
+      .filter(Boolean);
+
+    if (filePaths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('documents')
+        .remove(filePaths);
+
+      if (storageError) {
+        throw storageError;
+      }
+    }
+
     const { error } = await supabase
       .from('tickets')
       .delete()
@@ -196,4 +289,3 @@ export async function DELETE(req, { params }) {
     );
   }
 }
-
