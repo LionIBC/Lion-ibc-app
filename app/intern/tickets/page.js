@@ -18,8 +18,6 @@ const employeeOptions = [
   'Klaudia Junske',
   'Jana Junske',
   'Stefan Leiste',
-  'Khaoula Sahel',
-  'Jennifer Enter Pineker',
   'Hasan Godeni'
 ];
 
