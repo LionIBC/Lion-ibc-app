@@ -13,7 +13,6 @@ const employeeOptions = [
   'Hasan Godeni'
 ];
 
-
 export default function TicketDetailPage() {
   const { id } = useParams();
 
@@ -22,11 +21,12 @@ export default function TicketDetailPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusBox, setStatusBox] = useState(null);
+  const [savingTicket, setSavingTicket] = useState(false);
 
   const [newMessage, setNewMessage] = useState('');
   const [newTask, setNewTask] = useState('');
-  const [newTaskAssigned, setNewTaskAssigned] = useState('');
-  const [newTaskDate, setNewTaskDate] = useState('');
+  const [newTaskAssignedTo, setNewTaskAssignedTo] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
   useEffect(() => {
     loadTicket();
@@ -34,203 +34,961 @@ export default function TicketDetailPage() {
 
   async function loadTicket() {
     try {
+      setLoading(true);
+
       const res = await fetch(`/api/tickets/${id}`);
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) {
+        throw new Error(data?.message || 'Ticket konnte nicht geladen werden.');
+      }
 
       setTicket(data.data.ticket);
       setMessages(data.data.messages || []);
-      setTasks(data.data.tasks || []);
-    } catch (err) {
-      setStatusBox({ type: 'error', message: err.message });
+      setTasks(
+        (data.data.tasks || []).map((task) => ({
+          ...task,
+          isEditing: false
+        }))
+      );
+      setStatusBox(null);
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht geladen werden.'
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  function updateTicket(key, value) {
-    setTicket((prev) => ({ ...prev, [key]: value }));
+  function updateTicketField(key, value) {
+    setTicket((prev) => ({
+      ...prev,
+      [key]: value
+    }));
   }
 
-  function toggleUser(user) {
-    const list = ticket.assigned_users || [];
-    const exists = list.includes(user);
+  function toggleAssignedUser(user) {
+    setTicket((prev) => {
+      const current = Array.isArray(prev.assigned_users) ? prev.assigned_users : [];
+      const exists = current.includes(user);
 
-    updateTicket(
-      'assigned_users',
-      exists ? list.filter((u) => u !== user) : [...list, user]
-    );
+      return {
+        ...prev,
+        assigned_users: exists
+          ? current.filter((item) => item !== user)
+          : [...current, user]
+      };
+    });
   }
 
   async function saveTicket() {
     try {
+      setSavingTicket(true);
+
       const res = await fetch(`/api/tickets/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ticket)
+        body: JSON.stringify({
+          title: ticket.title,
+          description: ticket.description,
+          category: ticket.category,
+          priority: ticket.priority,
+          internal_status: ticket.internal_status,
+          customer_status: ticket.customer_status,
+          assigned_to: ticket.assigned_to,
+          assigned_users: ticket.assigned_users || [],
+          due_date: ticket.due_date || null,
+          internal_notes: ticket.internal_notes || ''
+        })
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
 
-      setStatusBox({ type: 'success', message: 'Gespeichert' });
+      if (!res.ok) {
+        throw new Error(json?.message || 'Ticket konnte nicht gespeichert werden.');
+      }
+
       setTicket(json.data);
-    } catch (err) {
-      setStatusBox({ type: 'error', message: err.message });
+      setStatusBox({
+        type: 'success',
+        message: 'Ticket wurde gespeichert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Ticket konnte nicht gespeichert werden.'
+      });
+    } finally {
+      setSavingTicket(false);
+    }
+  }
+
+  async function sendMessage(internal = false) {
+    if (!newMessage.trim()) return;
+
+    try {
+      const res = await fetch('/api/ticket-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: id,
+          message: newMessage,
+          author: 'Mitarbeiter',
+          author_type: 'employee',
+          is_internal: internal
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Nachricht konnte nicht gespeichert werden.');
+      }
+
+      setNewMessage('');
+      await loadTicket();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Nachricht konnte nicht gespeichert werden.'
+      });
     }
   }
 
   async function addTask() {
     if (!newTask.trim()) return;
 
-    await fetch('/api/ticket-tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticket_id: id,
-        title: newTask,
-        assigned_to: newTaskAssigned,
-        due_date: newTaskDate || null
-      })
-    });
+    try {
+      const res = await fetch('/api/ticket-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_id: id,
+          title: newTask,
+          assigned_to: newTaskAssignedTo,
+          due_date: newTaskDueDate || null
+        })
+      });
 
-    setNewTask('');
-    setNewTaskAssigned('');
-    setNewTaskDate('');
-    loadTicket();
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht erstellt werden.');
+      }
+
+      setNewTask('');
+      setNewTaskAssignedTo('');
+      setNewTaskDueDate('');
+      await loadTicket();
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde hinzugefügt.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht erstellt werden.'
+      });
+    }
   }
 
   async function toggleTask(task) {
-    await fetch(`/api/ticket-tasks/${task.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_done: !task.is_done })
-    });
+    try {
+      const res = await fetch(`/api/ticket-tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_done: !task.is_done
+        })
+      });
 
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht aktualisiert werden.');
+      }
+
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === task.id ? { ...item, is_done: !item.is_done } : item
+        )
+      );
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht aktualisiert werden.'
+      });
+    }
+  }
+
+  function startEditTask(taskId) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, isEditing: true } : task
+      )
+    );
+  }
+
+  function cancelEditTask(taskId) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, isEditing: false } : task
+      )
+    );
     loadTicket();
   }
 
-  async function sendMessage(internal = false) {
-    if (!newMessage.trim()) return;
-
-    await fetch('/api/ticket-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticket_id: id,
-        message: newMessage,
-        author: 'Mitarbeiter',
-        author_type: 'employee',
-        is_internal: internal
-      })
-    });
-
-    setNewMessage('');
-    loadTicket();
+  function updateTaskField(taskId, key, value) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, [key]: value } : task
+      )
+    );
   }
 
-  if (loading) return <div style={wrap}>Lade...</div>;
-  if (!ticket) return <div style={wrap}>Nicht gefunden</div>;
+  async function saveTask(task) {
+    try {
+      const res = await fetch(`/api/ticket-tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: task.title,
+          assigned_to: task.assigned_to || '',
+          due_date: task.due_date || null,
+          sort_order: Number(task.sort_order || 0),
+          is_done: Boolean(task.is_done)
+        })
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht gespeichert werden.');
+      }
+
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === task.id ? { ...json.data, isEditing: false } : item
+        )
+      );
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde gespeichert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht gespeichert werden.'
+      });
+    }
+  }
+
+  async function deleteTask(taskId) {
+    const confirmed = window.confirm('Soll diese Aufgabe wirklich gelöscht werden?');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/ticket-tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Aufgabe konnte nicht gelöscht werden.');
+      }
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+
+      setStatusBox({
+        type: 'success',
+        message: 'Aufgabe wurde gelöscht.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Aufgabe konnte nicht gelöscht werden.'
+      });
+    }
+  }
+
+  async function moveTask(task, direction) {
+    const sorted = [...tasks].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const index = sorted.findIndex((item) => item.id === task.id);
+
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+
+    const current = sorted[index];
+    const target = sorted[targetIndex];
+
+    try {
+      await fetch(`/api/ticket-tasks/${current.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort_order: Number(target.sort_order || 0)
+        })
+      });
+
+      await fetch(`/api/ticket-tasks/${target.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort_order: Number(current.sort_order || 0)
+        })
+      });
+
+      await loadTicket();
+
+      setStatusBox({
+        type: 'success',
+        message: 'Reihenfolge wurde aktualisiert.'
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Reihenfolge konnte nicht geändert werden.'
+      });
+    }
+  }
+
+  if (loading) return <div style={wrap}>Lade Ticket…</div>;
+  if (!ticket) return <div style={wrap}>Ticket nicht gefunden</div>;
 
   return (
     <main style={wrap}>
       <div style={container}>
-        {statusBox && (
-          <div style={statusBox.type === 'error' ? error : success}>
-            {statusBox.message}
-          </div>
-        )}
+        {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
+        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
-        {/* HEADER */}
-        <div style={card}>
-          <h1>{ticket.title}</h1>
+        <section style={card}>
+          <div style={headerTop}>
+            <div>
+              <h1 style={mainTitle}>{ticket.title}</h1>
+              <div style={metaText}>
+                {ticket.ticket_number} · {ticket.kundennummer || 'ohne Kundennummer'}
+              </div>
+            </div>
 
-          <div style={grid}>
-            <input value={ticket.title} onChange={(e) => updateTicket('title', e.target.value)} />
-            <input value={ticket.category} onChange={(e) => updateTicket('category', e.target.value)} />
-
-            <select value={ticket.assigned_to} onChange={(e) => updateTicket('assigned_to', e.target.value)}>
-              <option value="">Zuständig</option>
-              {employeeOptions.map((e) => (
-                <option key={e}>{e}</option>
-              ))}
-            </select>
-
-            <input type="date" value={ticket.due_date || ''} onChange={(e) => updateTicket('due_date', e.target.value)} />
+            <button onClick={saveTicket} style={saveButton} disabled={savingTicket}>
+              {savingTicket ? 'Speichert…' : 'Ticket speichern'}
+            </button>
           </div>
 
-          <textarea
-            value={ticket.description || ''}
-            onChange={(e) => updateTicket('description', e.target.value)}
-            placeholder="Beschreibung"
-          />
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>Überschrift</label>
+              <input
+                value={ticket.title || ''}
+                onChange={(e) => updateTicketField('title', e.target.value)}
+                style={input}
+              />
+            </div>
 
-          {/* Beteiligte */}
-          <div>
-            <strong>Beteiligte:</strong>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {employeeOptions.map((u) => (
-                <button key={u} onClick={() => toggleUser(u)}>
-                  {u}
-                </button>
-              ))}
+            <div style={field}>
+              <label style={label}>Kategorie</label>
+              <input
+                value={ticket.category || ''}
+                onChange={(e) => updateTicketField('category', e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Priorität</label>
+              <select
+                value={ticket.priority || 'normal'}
+                onChange={(e) => updateTicketField('priority', e.target.value)}
+                style={input}
+              >
+                <option value="niedrig">niedrig</option>
+                <option value="normal">normal</option>
+                <option value="hoch">hoch</option>
+                <option value="kritisch">kritisch</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Interner Status</label>
+              <select
+                value={ticket.internal_status || 'neu'}
+                onChange={(e) => updateTicketField('internal_status', e.target.value)}
+                style={input}
+              >
+                <option value="neu">Neu</option>
+                <option value="zugewiesen">Zugewiesen</option>
+                <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="wartet_auf_kunde">Wartet auf Kunde</option>
+                <option value="wartet_intern">Wartet intern</option>
+                <option value="erledigt">Erledigt</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Kundenstatus</label>
+              <select
+                value={ticket.customer_status || 'neu'}
+                onChange={(e) => updateTicketField('customer_status', e.target.value)}
+                style={input}
+              >
+                <option value="neu">Neu</option>
+                <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="rueckfrage">Rückfrage</option>
+                <option value="erledigt">Erledigt</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Fällig bis</label>
+              <input
+                type="date"
+                value={ticket.due_date || ''}
+                onChange={(e) => updateTicketField('due_date', e.target.value)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Hauptzuständig</label>
+              <select
+                value={ticket.assigned_to || ''}
+                onChange={(e) => updateTicketField('assigned_to', e.target.value)}
+                style={input}
+              >
+                <option value="">Bitte wählen</option>
+                {employeeOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ ...field, gridColumn: 'span 2' }}>
+              <label style={label}>Weitere Beteiligte</label>
+              <div style={chipWrap}>
+                {employeeOptions.map((user) => {
+                  const selected = (ticket.assigned_users || []).includes(user);
+                  return (
+                    <button
+                      key={user}
+                      type="button"
+                      onClick={() => toggleAssignedUser(user)}
+                      style={chipButton(selected)}
+                    >
+                      {user}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Interne Notizen */}
-          <textarea
-            placeholder="Interne Notizen (nur intern sichtbar)"
-            value={ticket.internal_notes || ''}
-            onChange={(e) => updateTicket('internal_notes', e.target.value)}
-          />
+          <div style={field}>
+            <label style={label}>Beschreibung</label>
+            <textarea
+              value={ticket.description || ''}
+              onChange={(e) => updateTicketField('description', e.target.value)}
+              style={textarea}
+            />
+          </div>
 
-          <button onClick={saveTicket}>Speichern</button>
-        </div>
+          <div style={field}>
+            <label style={label}>Interne Notizen</label>
+            <textarea
+              value={ticket.internal_notes || ''}
+              onChange={(e) => updateTicketField('internal_notes', e.target.value)}
+              placeholder="Nur intern sichtbar"
+              style={textarea}
+            />
+          </div>
+        </section>
 
-        {/* TASKS */}
-        <div style={card}>
-          <h2>Aufgaben</h2>
+        <section style={card}>
+          <h2 style={sectionTitle}>Aufgaben / Checkliste</h2>
 
-          {tasks.map((t) => (
-            <div key={t.id}>
-              <input type="checkbox" checked={t.is_done} onChange={() => toggleTask(t)} />
-              {t.title} ({t.assigned_to || '-'})
+          {(tasks || []).length === 0 ? (
+            <div style={infoBox}>Noch keine Aufgaben vorhanden.</div>
+          ) : (
+            <div style={taskList}>
+              {tasks
+                .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map((task, index, arr) => (
+                  <div key={task.id} style={taskCard}>
+                    {!task.isEditing ? (
+                      <>
+                        <div style={taskRowTop}>
+                          <div style={taskLeft}>
+                            <input
+                              type="checkbox"
+                              checked={task.is_done}
+                              onChange={() => toggleTask(task)}
+                            />
+                            <span
+                              style={{
+                                ...taskTitle,
+                                textDecoration: task.is_done ? 'line-through' : 'none'
+                              }}
+                            >
+                              {task.title}
+                            </span>
+                          </div>
+
+                          <div style={taskRight}>
+                            <button
+                              type="button"
+                              onClick={() => moveTask(task, 'up')}
+                              disabled={index === 0}
+                              style={smallButton}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveTask(task, 'down')}
+                              disabled={index === arr.length - 1}
+                              style={smallButton}
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => startEditTask(task.id)}
+                              style={editButton}
+                            >
+                              Bearbeiten
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteTask(task.id)}
+                              style={deleteButton}
+                            >
+                              Löschen
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={taskMetaRow}>
+                          <span><strong>Zuständig:</strong> {task.assigned_to || 'Nicht gesetzt'}</span>
+                          <span><strong>Frist:</strong> {task.due_date ? new Date(task.due_date).toLocaleDateString('de-DE') : 'Keine Frist'}</span>
+                          <span><strong>Reihenfolge:</strong> {task.sort_order || 0}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={editGrid}>
+                          <div style={field}>
+                            <label style={label}>Aufgabe</label>
+                            <input
+                              value={task.title || ''}
+                              onChange={(e) => updateTaskField(task.id, 'title', e.target.value)}
+                              style={input}
+                            />
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Zuständig</label>
+                            <select
+                              value={task.assigned_to || ''}
+                              onChange={(e) => updateTaskField(task.id, 'assigned_to', e.target.value)}
+                              style={input}
+                            >
+                              <option value="">Nicht gesetzt</option>
+                              {employeeOptions.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Frist</label>
+                            <input
+                              type="date"
+                              value={task.due_date || ''}
+                              onChange={(e) => updateTaskField(task.id, 'due_date', e.target.value)}
+                              style={input}
+                            />
+                          </div>
+
+                          <div style={field}>
+                            <label style={label}>Reihenfolge</label>
+                            <input
+                              type="number"
+                              value={task.sort_order || 0}
+                              onChange={(e) =>
+                                updateTaskField(task.id, 'sort_order', Number(e.target.value || 0))
+                              }
+                              style={input}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={taskEditActions}>
+                          <button
+                            type="button"
+                            onClick={() => saveTask(task)}
+                            style={saveButton}
+                          >
+                            Aufgabe speichern
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelEditTask(task.id)}
+                            style={secondaryButton}
+                          >
+                            Abbrechen
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+
+          <div style={taskCreateBox}>
+            <input
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              placeholder="Neue Aufgabe..."
+              style={input}
+            />
+            <select
+              value={newTaskAssignedTo}
+              onChange={(e) => setNewTaskAssignedTo(e.target.value)}
+              style={input}
+            >
+              <option value="">Zuständig</option>
+              {employeeOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={newTaskDueDate}
+              onChange={(e) => setNewTaskDueDate(e.target.value)}
+              style={input}
+            />
+            <button onClick={addTask} style={saveButton}>
+              Aufgabe hinzufügen
+            </button>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Kommunikation</h2>
+
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              style={{
+                ...messageBox,
+                background: msg.is_internal ? '#fff4e5' : '#eef6ff'
+              }}
+            >
+              <div style={messageMeta}>
+                <strong>{msg.author || 'Unbekannt'}</strong> ·{' '}
+                {msg.created_at ? new Date(msg.created_at).toLocaleString('de-DE') : '—'}
+                {msg.is_internal ? ' · interne Notiz' : ''}
+              </div>
+              <div>{msg.message}</div>
             </div>
           ))}
 
-          <div>
-            <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Neue Aufgabe" />
-            <select value={newTaskAssigned} onChange={(e) => setNewTaskAssigned(e.target.value)}>
-              <option value="">Zuständig</option>
-              {employeeOptions.map((e) => (
-                <option key={e}>{e}</option>
-              ))}
-            </select>
-            <input type="date" value={newTaskDate} onChange={(e) => setNewTaskDate(e.target.value)} />
-            <button onClick={addTask}>+</button>
+          <textarea
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Nachricht oder interne Notiz schreiben..."
+            style={textarea}
+          />
+
+          <div style={row}>
+            <button onClick={() => sendMessage(false)} style={saveButton}>
+              Nachricht senden
+            </button>
+            <button onClick={() => sendMessage(true)} style={secondaryButton}>
+              Interne Notiz
+            </button>
           </div>
-        </div>
-
-        {/* MESSAGES */}
-        <div style={card}>
-          <h2>Kommunikation</h2>
-
-          {messages.map((m) => (
-            <div key={m.id}>
-              <b>{m.author}</b>: {m.message} {m.is_internal && '(intern)'}
-            </div>
-          ))}
-
-          <textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
-
-          <button onClick={() => sendMessage(false)}>Senden</button>
-          <button onClick={() => sendMessage(true)}>Intern</button>
-        </div>
+        </section>
       </div>
     </main>
   );
 }
 
-const wrap = { padding: 30 };
-const container = { maxWidth: 900, margin: '0 auto', display: 'grid', gap: 20 }; const card = { background: '#fff', padding: 20, borderRadius: 12 }; const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }; const error = { background: '#fee', padding: 10 }; const success = { background: '#efe', padding: 10 };
+function chipButton(selected) {
+  return {
+    padding: '10px 12px',
+    borderRadius: '999px',
+    border: selected ? '1px solid #8c6b43' : '1px solid #d0d5dd',
+    background: selected ? '#8c6b43' : '#fff',
+    color: selected ? '#fff' : '#344054',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer'
+  };
+}
+
+const wrap = {
+  padding: 30,
+  background: '#f7f5ef',
+  minHeight: '100vh'
+};
+
+const container = {
+  maxWidth: 1180,
+  margin: '0 auto',
+  display: 'grid',
+  gap: 20
+};
+
+const card = {
+  background: '#fff',
+  padding: 24,
+  borderRadius: 18,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const headerTop = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 16,
+  alignItems: 'flex-start',
+  flexWrap: 'wrap',
+  marginBottom: 20
+};
+
+const mainTitle = {
+  margin: 0,
+  fontSize: 30,
+  color: '#101828'
+};
+
+const metaText = {
+  marginTop: 8,
+  color: '#667085',
+  fontSize: 14
+};
+
+const sectionTitle = {
+  margin: '0 0 18px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const grid3 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 16,
+  marginBottom: 16
+};
+
+const field = {
+  display: 'grid',
+  gap: 8
+};
+
+const label = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#344054'
+};
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  boxSizing: 'border-box',
+  background: '#fff'
+};
+
+const textarea = {
+  width: '100%',
+  minHeight: 110,
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  boxSizing: 'border-box',
+  resize: 'vertical',
+  background: '#fff'
+};
+
+const chipWrap = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap'
+};
+
+const taskList = {
+  display: 'grid',
+  gap: 14
+};
+
+const taskCard = {
+  border: '1px solid #eceff3',
+  borderRadius: 16,
+  padding: 16,
+  background: '#fcfcfd'
+};
+
+const taskRowTop = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 16,
+  alignItems: 'flex-start',
+  flexWrap: 'wrap'
+};
+
+const taskLeft = {
+  display: 'flex',
+  gap: 10,
+  alignItems: 'center',
+  flex: 1
+};
+
+const taskTitle = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const taskRight = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap'
+};
+
+const taskMetaRow = {
+  marginTop: 12,
+  display: 'flex',
+  gap: 18,
+  flexWrap: 'wrap',
+  fontSize: 13,
+  color: '#667085'
+};
+
+const editGrid = {
+  display: 'grid',
+  gridTemplateColumns: '2fr 1fr 1fr 160px',
+  gap: 14,
+  alignItems: 'end'
+};
+
+const taskEditActions = {
+  marginTop: 14,
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap'
+};
+
+const taskCreateBox = {
+  display: 'grid',
+  gridTemplateColumns: '2fr 1fr 1fr auto',
+  gap: 12,
+  marginTop: 18
+};
+
+const messageBox = {
+  padding: 14,
+  borderRadius: 12,
+  marginBottom: 12
+};
+
+const messageMeta = {
+  marginBottom: 8,
+  fontSize: 13,
+  color: '#475467'
+};
+
+const row = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 10,
+  flexWrap: 'wrap'
+};
+
+const saveButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: 'none',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const secondaryButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const editButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const smallButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const deleteButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #fecdca',
+  background: '#fff',
+  color: '#b42318',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const infoBox = {
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#fffaeb',
+  border: '1px solid #fedf89',
+  color: '#b54708'
+};
+
+const errorBox = {
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318'
+};
+
+const successBox = {
+  padding: '14px 16px',
+  borderRadius: '14px',
+  background: '#ecfdf3',
+  border: '1px solid #abefc6',
+  color: '#067647'
+};
