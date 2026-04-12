@@ -21,6 +21,7 @@ function mapTicket(row) {
     created_by_type: row.created_by_type || 'customer',
     created_by: row.created_by || '',
     assigned_to: row.assigned_to || '',
+    assigned_users: Array.isArray(row.assigned_users) ? row.assigned_users : [],
     due_date: row.due_date || null,
     created_at: row.created_at || null,
     updated_at: row.updated_at || null
@@ -34,7 +35,7 @@ function buildTicketNumber() {
   return `T-${year}-${timestamp}`;
 }
 
-function getDefaultInternalStatus(category) {
+function getDefaultInternalStatus() {
   return 'neu';
 }
 
@@ -56,31 +57,15 @@ export async function GET(req) {
       .select('*')
       .order('updated_at', { ascending: false });
 
-    if (kundennummer) {
-      query = query.eq('kundennummer', kundennummer);
-    }
-
-    if (internalStatus) {
-      query = query.eq('internal_status', internalStatus);
-    }
-
-    if (customerStatus) {
-      query = query.eq('customer_status', customerStatus);
-    }
-
-    if (assignedTo) {
-      query = query.eq('assigned_to', assignedTo);
-    }
-
-    if (category) {
-      query = query.eq('category', category);
-    }
+    if (kundennummer) query = query.eq('kundennummer', kundennummer);
+    if (internalStatus) query = query.eq('internal_status', internalStatus);
+    if (customerStatus) query = query.eq('customer_status', customerStatus);
+    if (assignedTo) query = query.eq('assigned_to', assignedTo);
+    if (category) query = query.eq('category', category);
 
     const { data, error } = await query;
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     return Response.json({
       success: true,
@@ -109,20 +94,18 @@ export async function POST(req) {
     const createdByType = body.created_by_type || 'customer';
     const createdBy = body.created_by || '';
     const assignedTo = body.assigned_to || '';
+    const assignedUsers = Array.isArray(body.assigned_users) ? body.assigned_users : [];
     const dueDate = body.due_date || null;
 
     if (!title.trim()) {
       return Response.json(
-        {
-          success: false,
-          message: 'Überschrift fehlt.'
-        },
+        { success: false, message: 'Überschrift fehlt.' },
         { status: 400 }
       );
     }
 
     const ticketNumber = buildTicketNumber();
-    const internalStatus = getDefaultInternalStatus(category);
+    const internalStatus = getDefaultInternalStatus();
     const customerStatus = getDefaultCustomerStatus(createdByType);
 
     const { data, error } = await supabase
@@ -140,6 +123,7 @@ export async function POST(req) {
           created_by_type: createdByType,
           created_by: createdBy,
           assigned_to: assignedTo,
+          assigned_users: assignedUsers,
           due_date: dueDate,
           updated_at: new Date().toISOString()
         }
@@ -147,9 +131,7 @@ export async function POST(req) {
       .select()
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     return Response.json({
       success: true,
@@ -166,4 +148,3 @@ export async function POST(req) {
     );
   }
 }
-
