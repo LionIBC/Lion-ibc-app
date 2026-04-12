@@ -11,6 +11,20 @@ const employeeOptions = [
   'Hasan Godeni'
 ];
 
+function toDateInputValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function toDateTimeLocalValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16); }
+
 export default function TicketDetailPage() {
   const { id } = useParams();
   const fileInputRef = useRef(null);
@@ -107,6 +121,8 @@ export default function TicketDetailPage() {
           assigned_to: ticket.assigned_to,
           assigned_users: ticket.assigned_users || [],
           due_date: ticket.due_date || null,
+          appointment_date: ticket.appointment_date || null,
+          custom_status: ticket.custom_status || '',
           internal_notes: ticket.internal_notes || ''
         })
       });
@@ -508,7 +524,7 @@ export default function TicketDetailPage() {
             <div>
               <h1 style={mainTitle}>{ticket.title}</h1>
               <div style={metaText}>
-                {ticket.ticket_number} · {ticket.kundennummer || 'ohne Kundennummer'}
+                {ticket.ticket_number} · {ticket.customer_name || ticket.mandant_name || ticket.kundennummer || 'ohne Kundennummer'}
               </div>
             </div>
 
@@ -590,8 +606,28 @@ export default function TicketDetailPage() {
               <label style={label}>Fällig bis</label>
               <input
                 type="date"
-                value={ticket.due_date || ''}
-                onChange={(e) => updateTicketField('due_date', e.target.value)}
+                value={toDateInputValue(ticket.due_date)}
+                onChange={(e) => updateTicketField('due_date', e.target.value || null)}
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Zusätzlicher Status</label>
+              <input
+                value={ticket.custom_status || ''}
+                onChange={(e) => updateTicketField('custom_status', e.target.value)}
+                placeholder="z. B. Warten auf Behörden"
+                style={input}
+              />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Termin</label>
+              <input
+                type="datetime-local"
+                value={toDateTimeLocalValue(ticket.appointment_date)}
+                onChange={(e) => updateTicketField('appointment_date', e.target.value || null)}
                 style={input}
               />
             </div>
@@ -841,7 +877,7 @@ export default function TicketDetailPage() {
                             <label style={label}>Frist</label>
                             <input
                               type="date"
-                              value={task.due_date || ''}
+                              value={toDateInputValue(task.due_date)}
                               onChange={(e) => updateTaskField(task.id, 'due_date', e.target.value)}
                               style={input}
                             />
@@ -1334,3 +1370,4 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
