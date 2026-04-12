@@ -5,80 +5,26 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function POST(req) {
+// 🔹 Tickets laden (für Board)
+export async function GET() {
   try {
-    const body = await req.json();
-
-    const {
-      title,
-      description,
-      template_id,
-      created_by
-    } = body;
-
-    if (!title) {
-      return Response.json(
-        { success: false, message: 'Titel fehlt.' },
-        { status: 400 }
-      );
-    }
-
-    // 🧾 1. Ticket erstellen
-    const { data: ticket, error: ticketError } = await supabase
+    const { data, error } = await supabase
       .from('tickets')
-      .insert([
-        {
-          title,
-          description,
-          template_id,
-          created_by,
-          status: 'neu'
-        }
-      ])
-      .select()
-      .single();
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (ticketError) throw ticketError;
-
-    // 📦 2. Wenn Vorlage vorhanden → Aufgaben laden
-    if (template_id) {
-      const { data: templateTasks, error: templateError } = await supabase
-        .from('ticket_template_tasks')
-        .select('*')
-        .eq('template_id', template_id)
-        .order('sort_order', { ascending: true });
-
-      if (templateError) throw templateError;
-
-      // 🧠 3. Aufgaben ins Ticket kopieren
-      if (templateTasks && templateTasks.length > 0) {
-        const tasksToInsert = templateTasks.map((task) => ({
-          ticket_id: ticket.id,
-          title: task.title,
-          sort_order: task.sort_order,
-          assigned_to: task.assigned_to || null,
-          status: 'offen'
-        }));
-
-        const { error: insertError } = await supabase
-          .from('ticket_tasks')
-          .insert(tasksToInsert);
-
-        if (insertError) throw insertError;
-      }
-    }
+    if (error) throw error;
 
     return Response.json({
       success: true,
-      message: 'Ticket wurde erstellt.',
-      ticket
+      data: data || []
     });
 
   } catch (error) {
     return Response.json(
       {
         success: false,
-        message: error.message || 'Fehler beim Erstellen des Tickets.'
+        message: error.message
       },
       { status: 500 }
     );
