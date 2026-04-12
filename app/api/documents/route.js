@@ -1,290 +1,80 @@
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server'; import { createClient } from '@supabase/supabase-js';
 
+// Supabase Verbindung
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-function sanitizeFileName(name) {
-  return String(name || '')
-    .normalize('NFKD')
-    .replace(/[^\w.\-]+/g, '_')
-    .replace(/_+/g, '_');
-}
-
-function categorySlug(category) {
-  return String(category || 'sonstiges')
-    .toLowerCase()
-    .replace(/[ä]/g, 'ae')
-    .replace(/[ö]/g, 'oe')
-    .replace(/[ü]/g, 'ue')
-    .replace(/[ß]/g, 'ss')
-    .replace(/[^\w]+/g, '-');
-}
-
-async function addSignedUrls(rows) {
-  const result = [];
-
-  for (const row of rows || []) {
-    let signedUrl = null;
-    let downloadUrl = null;
-
-    if (row.file_path) {
-      const { data: openData } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(row.file_path, 60 * 60);
-
-      const { data: downloadData } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(row.file_path, 60 * 60, {
-          download: row.original_name || true
-        });
-
-      signedUrl = openData?.signedUrl || null;
-      downloadUrl = downloadData?.signedUrl || null;
-    }
-
-    result.push({
-      ...row,
-      signed_url: signedUrl,
-      download_url: downloadUrl
-    });
-  }
-
-  return result;
-}
-
-export async function GET(req) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const kundennummer = searchParams.get('kundennummer');
-
-    let query = supabase
-      .from('documents')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (kundennummer) {
-      query = query.eq('kundennummer', kundennummer);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    const rowsWithUrls = await addSignedUrls(data || []);
-
-    return Response.json({
-      success: true,
-      data: rowsWithUrls
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: error.message || 'Dokumente konnten nicht geladen werden.'
-      },
-      { status: 500 }
-    );
-  }
-}
-
 export async function POST(req) {
   try {
     const formData = await req.formData();
 
-    const kundennummer = formData.get('kundennummer');
-    const category = formData.get('category');
-    const description = formData.get('description') || '';
-    const uploadedBy = formData.get('uploadedBy') || 'portal';
     const files = formData.getAll('files');
-
-    if (!kundennummer) {
-      return Response.json(
-        { success: false, message: 'Kundennummer fehlt.' },
-        { status: 400 }
-      );
-    }
+    const source = formData.get('source') || 'unknown';
 
     if (!files || files.length === 0) {
-      return Response.json(
-        { success: false, message: 'Keine Dateien ausgewählt.' },
+      return NextResponse.json(
+        { message: 'Keine Dateien erhalten' },
         { status: 400 }
       );
     }
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-
-    const insertedRows = [];
+    const uploadedFiles = [];
 
     for (const file of files) {
-      if (!(file instanceof File)) continue;
+      const buffer = Buffer.from(await file.arrayBuffer());
 
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
+      const fileName = `${Date.now()}-${file.name}`;
 
-      const cleanOriginalName = sanitizeFileName(file.name);
-      const storedName = `${kundennummer}_${year}-${String(month).padStart(2, '0')}_${categorySlug(category)}_${Date.now()}_${cleanOriginalName}`;
-      const filePath = `${kundennummer}/${storedName}`;
-
+      // 📦 Upload in Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('documents')
-        .upload(filePath, buffer, {
-          contentType: file.type || 'application/octet-stream',
-          upsert: false
+        .upload(fileName, buffer, {
+          contentType: file.type
         });
 
       if (uploadError) {
-        throw uploadError;
+        throw new Error(uploadError.message);
       }
 
-      const { data: row, error: insertError } = await supabase
+      // 📄 Public URL erzeugen
+      const { data: publicUrl } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      // 🗄️ In Datenbank speichern
+      const { error: dbError } = await supabase
         .from('documents')
         .insert({
-          kundennummer,
-          original_name: file.name,
-          stored_name: storedName,
-          category,
-          description,
-          file_path: filePath,
-          mime_type: file.type || '',
-          file_size: file.size || 0,
-          uploaded_by: uploadedBy,
-          status: 'neu',
-          year,
-          month,
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+          file_name: file.name,
+          file_path: fileName,
+          file_url: publicUrl.publicUrl,
+          file_size: file.size,
+          source: source,
+          category: 'sonstiges',
+          created_at: new Date()
+        });
 
-      if (insertError) {
-        throw insertError;
+      if (dbError) {
+        throw new Error(dbError.message);
       }
 
-      insertedRows.push(row);
+      uploadedFiles.push({
+        name: file.name,
+        url: publicUrl.publicUrl
+      });
     }
 
-    const rowsWithUrls = await addSignedUrls(insertedRows);
-
-    return Response.json({
-      success: true,
-      message: 'Dokument(e) erfolgreich gespeichert.',
-      data: rowsWithUrls
+    return NextResponse.json({
+      message: 'Upload erfolgreich',
+      files: uploadedFiles
     });
   } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: error.message || 'Dokumente konnten nicht gespeichert werden.'
-      },
-      { status: 500 }
-    );
-  }
-}
+    console.error(error);
 
-export async function PATCH(req) {
-  try {
-    const body = await req.json();
-    const { id, category, status, description } = body;
-
-    if (!id) {
-      return Response.json(
-        { success: false, message: 'Dokument-ID fehlt.' },
-        { status: 400 }
-      );
-    }
-
-    const updatePayload = {
-      updated_at: new Date().toISOString()
-    };
-
-    if (category) updatePayload.category = category;
-    if (status) updatePayload.status = status;
-    if (typeof description === 'string') updatePayload.description = description;
-
-    const { error } = await supabase
-      .from('documents')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
-
-    return Response.json({
-      success: true,
-      message: 'Dokument aktualisiert.'
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: error.message || 'Dokument konnte nicht aktualisiert werden.'
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(req) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return Response.json(
-        { success: false, message: 'Dokument-ID fehlt.' },
-        { status: 400 }
-      );
-    }
-
-    const { data: documentRow, error: loadError } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (loadError || !documentRow) {
-      return Response.json(
-        { success: false, message: 'Dokument wurde nicht gefunden.' },
-        { status: 404 }
-      );
-    }
-
-    if (documentRow.file_path) {
-      const { error: storageError } = await supabase.storage
-        .from('documents')
-        .remove([documentRow.file_path]);
-
-      if (storageError) {
-        throw storageError;
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    return Response.json({
-      success: true,
-      message: 'Dokument wurde gelöscht.'
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        success: false,
-        message: error.message || 'Dokument konnte nicht gelöscht werden.'
-      },
+    return NextResponse.json(
+      { message: error.message || 'Upload fehlgeschlagen' },
       { status: 500 }
     );
   }
