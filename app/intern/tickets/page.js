@@ -11,7 +11,17 @@ const boardColumns = [
   { key: 'wartet_intern', label: 'Wartet intern' },
   { key: 'erledigt', label: 'Erledigt' } ];
 
-const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch']; const employeeOptions = ['Erjon', 'Silvana', 'Claudia'];
+const priorityOptions = ['niedrig', 'normal', 'hoch', 'kritisch']; 
+const employeeOptions = [
+  'Erjon Godeni',
+  'Silvana Sabellek',
+  'Klaudia Junske',
+  'Jana Junske',
+  'Stefan Leiste',
+  'Khaoula Sahel',
+  'Jennifer Enter Pineker',
+  'Hasan Godeni'
+];
 
 export default function InternTicketsBoardPage() {
   const [tickets, setTickets] = useState([]);
