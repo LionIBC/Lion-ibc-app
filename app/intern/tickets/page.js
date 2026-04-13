@@ -1,544 +1,181 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react'; import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-const employeeOptions = [
-  'Erjon Godeni',
-  'Silvana Sabellek',
-  'Klaudia Junske',
-  'Jana Junske',
-  'Stefan Leiste',
-  'Hasan Godeni'
+const DEFAULT_COLUMNS = [
+  'neu',
+  'in Bearbeitung',
+  'Rückfrage',
+  'erledigt'
 ];
 
-const baseColumns = [
-  { key: 'neu', label: 'Neu' },
-  { key: 'zugewiesen', label: 'Zugewiesen' },
-  { key: 'in_bearbeitung', label: 'In Bearbeitung' },
-  { key: 'wartet_auf_kunde', label: 'Wartet auf Kunde' },
-  { key: 'erledigt', label: 'Erledigt' } ];
-
-function formatDate(dateValue) {
-  if (!dateValue) return '';
-  try {
-    return new Date(dateValue).toLocaleDateString('de-DE');
-  } catch {
-    return '';
-  }
-}
-
-function formatDateTimeLocal(dateValue) {
-  if (!dateValue) return '';
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function normalizeText(value) {
-  return String(value || '').trim().toLowerCase(); }
-
-function getTicketColumnKey(ticket) {
-  if (ticket?.custom_status) {
-    return `custom:${ticket.custom_status}`;
-  }
-
-  return ticket?.internal_status || 'neu'; }
-
-function getTicketCustomerLabel(ticket) {
-  return (
-    ticket?.customer_name ||
-    ticket?.mandant_name ||
-    ticket?.kundennummer ||
-    'Ohne Mandant'
-  );
-}
-
 export default function TicketsPage() {
-  const router = useRouter();
-
   const [tickets, setTickets] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusBox, setStatusBox] = useState(null);
 
-  const [filterKundennummer, setFilterKundennummer] = useState('');
-  const [filterAssignedTo, setFilterAssignedTo] = useState('');
-
-  const [creating, setCreating] = useState(false);
-  const [newTicket, setNewTicket] = useState({
-    template_id: '',
-    kundennummer: '',
-    title: '',
-    description: '',
-    category: '',
-    priority: 'normal',
-    assigned_to: '',
-    assigned_users: [],
-    due_date: '',
-    appointment_date: '',
-    custom_status: ''
-  });
+  const [title, setTitle] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
-    loadPage();
+    loadTickets();
+    loadCustomers();
   }, []);
 
-  async function loadPage() {
-    try {
-      setLoading(true);
-      setStatusBox(null);
+  async function loadTickets() {
+    const res = await fetch('/api/tickets');
+    const data = await res.json();
 
-      const [ticketsRes, templatesRes] = await Promise.all([
-        fetch('/api/tickets'),
-        fetch('/api/ticket-templates').catch(() => null)
-      ]);
-
-      const ticketsJson = await ticketsRes.json();
-
-      if (!ticketsRes.ok) {
-        throw new Error(ticketsJson?.message || 'Tickets konnten nicht geladen werden.');
-      }
-
-      setTickets(Array.isArray(ticketsJson?.data) ? ticketsJson.data : []);
-
-      if (templatesRes) {
-        try {
-          const templatesJson = await templatesRes.json();
-          if (templatesRes.ok) {
-            setTemplates(Array.isArray(templatesJson?.data) ? templatesJson.data : []);
-          }
-        } catch {
-          setTemplates([]);
-        }
-      }
-    } catch (error) {
-      setStatusBox({
-        type: 'error',
-        message: error.message || 'Seite konnte nicht geladen werden.'
-      });
-    } finally {
-      setLoading(false);
+    if (res.ok) {
+      setTickets(data.data || []);
     }
+
+    setLoading(false);
   }
 
-  function updateNewTicketField(key, value) {
-    setNewTicket((prev) => ({
-      ...prev,
-      [key]: value
-    }));
-  }
+  async function loadCustomers() {
+    const res = await fetch('/api/customers');
+    const data = await res.json();
 
-  function toggleNewTicketAssignedUser(user) {
-    setNewTicket((prev) => {
-      const list = Array.isArray(prev.assigned_users) ? prev.assigned_users : [];
-      const exists = list.includes(user);
-
-      return {
-        ...prev,
-        assigned_users: exists
-          ? list.filter((item) => item !== user)
-          : [...list, user]
-      };
-    });
+    if (res.ok) {
+      setCustomers(data.data || []);
+    }
   }
 
   async function createTicket() {
-    if (!newTicket.title.trim()) {
-      setStatusBox({
-        type: 'error',
-        message: 'Bitte eine Überschrift eintragen.'
-      });
+    if (!title || !customerId) {
+      alert('Titel und Mandant erforderlich');
       return;
     }
 
-    try {
-      setCreating(true);
-      setStatusBox(null);
-
-      const res = await fetch('/api/tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_id: newTicket.template_id || '',
-          kundennummer: newTicket.kundennummer || '',
-          title: newTicket.title || '',
-          description: newTicket.description || '',
-          category: newTicket.category || '',
-          priority: newTicket.priority || 'normal',
-          assigned_to: newTicket.assigned_to || '',
-          assigned_users: newTicket.assigned_users || [],
-          due_date: newTicket.due_date || null,
-          appointment_date: newTicket.appointment_date || null,
-          custom_status: newTicket.custom_status || '',
-          created_by_type: 'employee',
-          created_by: 'Mitarbeiter'
-        })
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json?.message || 'Ticket konnte nicht erstellt werden.');
-      }
-
-      setStatusBox({
-        type: 'success',
-        message: 'Ticket wurde erstellt.'
-      });
-
-      setNewTicket({
-        template_id: '',
-        kundennummer: '',
-        title: '',
-        description: '',
-        category: '',
-        priority: 'normal',
-        assigned_to: '',
-        assigned_users: [],
-        due_date: '',
-        appointment_date: '',
-        custom_status: ''
-      });
-
-      const createdId = json?.data?.id || json?.ticket?.id || '';
-
-      await loadPage();
-
-      if (createdId) {
-        router.push(`/intern/tickets/${createdId}`);
-      }
-    } catch (error) {
-      setStatusBox({
-        type: 'error',
-        message: error.message || 'Ticket konnte nicht erstellt werden.'
-      });
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  const visibleTickets = useMemo(() => {
-    return (tickets || []).filter((ticket) => {
-      const kundennummerOk = !filterKundennummer.trim()
-        ? true
-        : normalizeText(ticket.kundennummer).includes(normalizeText(filterKundennummer));
-
-      const assignedToOk = !filterAssignedTo.trim()
-        ? true
-        : normalizeText(ticket.assigned_to).includes(normalizeText(filterAssignedTo));
-
-      return kundennummerOk && assignedToOk;
+    const res = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        description,
+        customer_id: customerId,
+        created_by: 'Intern',
+        created_by_type: 'internal'
+      })
     });
-  }, [tickets, filterKundennummer, filterAssignedTo]);
 
-  const customColumns = useMemo(() => {
-    const labels = [];
-
-    for (const ticket of visibleTickets) {
-      const value = String(ticket?.custom_status || '').trim();
-      if (value && !labels.includes(value)) {
-        labels.push(value);
-      }
+    if (res.ok) {
+      setTitle('');
+      setDescription('');
+      setCustomerId('');
+      loadTickets();
+    } else {
+      alert('Fehler beim Erstellen');
     }
-
-    return labels.map((label) => ({
-      key: `custom:${label}`,
-      label
-    }));
-  }, [visibleTickets]);
-
-  const columns = useMemo(() => {
-    return [
-      baseColumns[0],
-      baseColumns[1],
-      baseColumns[2],
-      ...customColumns,
-      baseColumns[3],
-      baseColumns[4]
-    ];
-  }, [customColumns]);
-
-  const ticketCountByColumn = useMemo(() => {
-    const result = {};
-
-    for (const column of columns) {
-      result[column.key] = visibleTickets.filter(
-        (ticket) => getTicketColumnKey(ticket) === column.key
-      ).length;
-    }
-
-    return result;
-  }, [columns, visibleTickets]);
-
-  const totalCount = visibleTickets.length;
-  const neuCount = visibleTickets.filter((ticket) => getTicketColumnKey(ticket) === 'neu').length;
-  const inBearbeitungCount = visibleTickets.filter((ticket) => getTicketColumnKey(ticket) === 'in_bearbeitung').length;
-
-  if (loading) {
-    return <main style={wrap}><div style={container}>Lade Tickets…</div></main>;
   }
+
+  function groupTickets() {
+    const grouped = {};
+
+    DEFAULT_COLUMNS.forEach((col) => {
+      grouped[col] = [];
+    });
+
+    tickets.forEach((t) => {
+      const status = t.internal_status || 'neu';
+
+      if (!grouped[status]) grouped[status] = [];
+
+      grouped[status].push(t);
+    });
+
+    return grouped;
+  }
+
+  const grouped = groupTickets();
 
   return (
-    <main style={wrap}>
-      <div style={container}>
-        <section style={heroCard}>
-          <div style={badge}>Intern</div>
-          <h1 style={mainTitle}>Tickets</h1>
-          <p style={heroText}>
-            Interne Tafelansicht für alle Tickets. Oben können neue Tickets mit Hauptzuständigkeit,
-            weiteren Beteiligten und optional einer Vorlage erstellt werden.
-          </p>
-        </section>
+    <main style={{ padding: 30 }}>
+      <h1>Tickets</h1>
 
-        {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
-        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
+      {/* Erstellung */}
+      <div style={{ marginBottom: 30 }}>
+        <h3>Neues Ticket</h3>
 
-        <section style={card}>
-          <h2 style={sectionTitle}>Neues Ticket erstellen</h2>
+        <input
+          placeholder="Titel"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
-          <div style={grid3}>
-            <div style={field}>
-              <label style={label}>Vorlage auswählen</label>
-              <select
-                value={newTicket.template_id}
-                onChange={(e) => updateNewTicketField('template_id', e.target.value)}
-                style={input}
-              >
-                <option value="">Keine Vorlage</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name || template.title || 'Vorlage'}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <br /><br />
 
-            <div style={field}>
-              <label style={label}>Kundennummer</label>
-              <input
-                value={newTicket.kundennummer}
-                onChange={(e) => updateNewTicketField('kundennummer', e.target.value)}
-                placeholder="z. B. K-10023"
-                style={input}
-              />
-            </div>
+        <select
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+        >
+          <option value="">Mandant wählen</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.firmenname} ({c.kundennummer})
+            </option>
+          ))}
+        </select>
 
-            <div style={field}>
-              <label style={label}>Kategorie</label>
-              <input
-                value={newTicket.category}
-                onChange={(e) => updateNewTicketField('category', e.target.value)}
-                placeholder="z. B. Neukundenaufnahme"
-                style={input}
-              />
-            </div>
+        <br /><br />
 
-            <div style={field}>
-              <label style={label}>Priorität</label>
-              <select
-                value={newTicket.priority}
-                onChange={(e) => updateNewTicketField('priority', e.target.value)}
-                style={input}
-              >
-                <option value="niedrig">niedrig</option>
-                <option value="normal">normal</option>
-                <option value="hoch">hoch</option>
-                <option value="kritisch">kritisch</option>
-              </select>
-            </div>
+        <textarea
+          placeholder="Beschreibung"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
-            <div style={field}>
-              <label style={label}>Hauptzuständig</label>
-              <select
-                value={newTicket.assigned_to}
-                onChange={(e) => updateNewTicketField('assigned_to', e.target.value)}
-                style={input}
-              >
-                <option value="">Bitte wählen</option>
-                {employeeOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <br /><br />
 
-            <div style={field}>
-              <label style={label}>Fällig bis</label>
-              <input
-                type="date"
-                value={newTicket.due_date}
-                onChange={(e) => updateNewTicketField('due_date', e.target.value)}
-                style={input}
-              />
-            </div>
-
-            <div style={field}>
-              <label style={label}>Termin</label>
-              <input
-                type="datetime-local"
-                value={newTicket.appointment_date}
-                onChange={(e) => updateNewTicketField('appointment_date', e.target.value)}
-                style={input}
-              />
-            </div>
-
-            <div style={field}>
-              <label style={label}>Zusätzlicher Bearbeitungsstatus</label>
-              <input
-                value={newTicket.custom_status}
-                onChange={(e) => updateNewTicketField('custom_status', e.target.value)}
-                placeholder="leer lassen oder später z. B. Warten auf Behörden"
-                style={input}
-              />
-            </div>
-
-            <div style={{ ...field, gridColumn: 'span 3' }}>
-              <label style={label}>Überschrift</label>
-              <input
-                value={newTicket.title}
-                onChange={(e) => updateNewTicketField('title', e.target.value)}
-                placeholder="Kurze Überschrift für das Ticket"
-                style={input}
-              />
-            </div>
-          </div>
-
-          <div style={{ ...field, marginTop: 12 }}>
-            <label style={label}>Weitere Beteiligte</label>
-            <div style={chipWrap}>
-              {employeeOptions.map((user) => {
-                const selected = (newTicket.assigned_users || []).includes(user);
-                return (
-                  <button
-                    key={user}
-                    type="button"
-                    onClick={() => toggleNewTicketAssignedUser(user)}
-                    style={chipButton(selected)}
-                  >
-                    {user}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div style={{ ...field, marginTop: 16 }}>
-            <label style={label}>Beschreibung</label>
-            <textarea
-              value={newTicket.description}
-              onChange={(e) => updateNewTicketField('description', e.target.value)}
-              placeholder="Problem, Anfrage oder Aufgabe beschreiben"
-              style={textarea}
-            />
-          </div>
-
-          <p style={hintText}>
-            Intern erstellte Tickets werden im Kundenstatus direkt als <strong>In Bearbeitung</strong> angelegt.
-            Wird eine Vorlage gewählt, werden Ticketdaten und Aufgaben automatisch erzeugt.
-            Der zusätzliche Bearbeitungsstatus kann leer bleiben und später im Arbeitsalltag gesetzt werden.
-          </p>
-
-          <div style={row}>
-            <button onClick={createTicket} style={saveButton} disabled={creating}>
-              {creating ? 'Erstellt…' : 'Ticket erstellen'}
-            </button>
-          </div>
-        </section>
-
-        <section style={statsRow}>
-          <div style={statCard}>
-            <div style={statLabel}>Gesamt</div>
-            <div style={statValue}>{totalCount}</div>
-          </div>
-
-          <div style={statCard}>
-            <div style={statLabel}>Neu</div>
-            <div style={statValue}>{neuCount}</div>
-          </div>
-
-          <div style={statCard}>
-            <div style={statLabel}>In Bearbeitung</div>
-            <div style={statValue}>{inBearbeitungCount}</div>
-          </div>
-        </section>
-
-        <section style={card}>
-          <h2 style={sectionTitle}>Filter</h2>
-
-          <div style={filterGrid}>
-            <div style={field}>
-              <label style={label}>Kundennummer</label>
-              <input
-                value={filterKundennummer}
-                onChange={(e) => setFilterKundennummer(e.target.value)}
-                placeholder="z. B. K-10023"
-                style={input}
-              />
-            </div>
-
-            <div style={field}>
-              <label style={label}>Zuständig</label>
-              <input
-                value={filterAssignedTo}
-                onChange={(e) => setFilterAssignedTo(e.target.value)}
-                placeholder="z. B. Erjon"
-                style={input}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section style={boardWrap}>
-          {columns.map((column) => {
-            const columnTickets = visibleTickets.filter(
-              (ticket) => getTicketColumnKey(ticket) === column.key
-            );
-
-            return (
-              <div key={column.key} style={boardColumn}>
-                <div style={columnHeader}>
-                  <span style={columnTitle}>{column.label}</span>
-                  <span style={columnCount}>{ticketCountByColumn[column.key] || 0}</span>
-                </div>
-
-                <div style={columnBody}>
-                  {columnTickets.length === 0 ? (
-                    <div style={emptyCard}>Keine Tickets</div>
-                  ) : (
-                    columnTickets.map((ticket) => (
-                      <button
-                        key={ticket.id}
-                        type="button"
-                        onClick={() => router.push(`/intern/tickets/${ticket.id}`)}
-                        style={ticketCardButton}
-                      >
-                        <div style={ticketCardCustomer}>
-                          {getTicketCustomerLabel(ticket)}
-                        </div>
-
-                        <div style={ticketCardTitle}>
-                          {ticket.title || 'Ohne Titel'}
-                        </div>
-
-                        {ticket.appointment_date ? (
-                          <div style={ticketMiniMeta}>
-                            Termin: {formatDate(ticket.appointment_date)}
-                          </div>
-                        ) : null}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </section>
+        <button onClick={createTicket}>
+          Ticket erstellen
+        </button>
       </div>
+
+      {/* Board */}
+      {loading ? (
+        <p>Lade...</p>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 20
+        }}>
+          {Object.keys(grouped).map((status) => (
+            <div key={status}>
+              <h3>{status}</h3>
+
+              {grouped[status].map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    padding: 10,
+                    marginBottom: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 10,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    window.location.href = `/intern/tickets/${t.id}`;
+                  }}
+                >
+                  <strong>{t.title}</strong>
+                  <br />
+                  <small>
+                    {t.kundenname} ({t.kundennummer})
+                  </small>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
+
 
 function chipButton(selected) {
   return {
