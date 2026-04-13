@@ -5,32 +5,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-function mapTicket(row) {
-  if (!row) return null;
-
-  return {
-    id: row.id,
-    ticket_number: row.ticket_number || '',
-    kundennummer: row.kundennummer || '',
-    customer_name: row.customer_name || '',
-    mandant_name: row.mandant_name || '',
-    title: row.title || '',
-    description: row.description || '',
-    category: row.category || '',
-    priority: row.priority || 'normal',
-    internal_status: row.internal_status || 'neu',
-    customer_status: row.customer_status || 'neu',
-    created_by_type: row.created_by_type || 'customer',
-    created_by: row.created_by || '',
-    assigned_to: row.assigned_to || '',
-    assigned_users: Array.isArray(row.assigned_users) ? row.assigned_users : [],
-    due_date: row.due_date || null,
-    appointment_date: row.appointment_date || null,
-    custom_status: row.custom_status || '',
-    internal_notes: row.internal_notes || '',
-    created_at: row.created_at || null,
-    updated_at: row.updated_at || null
-  };
+function normalizeArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (!value) return [];
+  return [];
 }
 
 function buildTicketNumber() {
@@ -40,14 +18,47 @@ function buildTicketNumber() {
   return `T-${year}-${stamp}`;
 }
 
+function normalizeStatus(value, fallback = 'neu') {
+  return String(value || fallback).trim() || fallback; }
+
+function mapTicket(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    ticket_number: row.ticket_number || '',
+    customer_id: row.customer_id || null,
+    kundennummer: row.kundennummer || '',
+    kundenname: row.kundenname || '',
+    title: row.title || '',
+    description: row.description || '',
+    category: row.category || '',
+    priority: row.priority || 'normal',
+    customer_status: row.customer_status || 'neu',
+    internal_status: row.internal_status || 'neu',
+    assigned_users: normalizeArray(row.assigned_users),
+    participants: normalizeArray(row.participants),
+    due_date: row.due_date || null,
+    appointment_date: row.appointment_date || null,
+    created_by: row.created_by || '',
+    created_by_type: row.created_by_type || '',
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null
+  };
+}
+
 export async function GET() {
   try {
     const { data, error } = await supabase
       .from('tickets')
-      .select('*')
-      .order('updated_at', { ascending: false });
+      .select(`
+        *
+      `)
+      .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      throw new Error(error.message);
+    }
 
     return Response.json({
       success: true,
@@ -68,94 +79,89 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    const kundennummer = body.kundennummer || '';
-    const customerName = body.customer_name || '';
-    const mandantName = body.mandant_name || '';
-    const title = body.title || '';
-    const description = body.description || '';
-    const category = body.category || '';
-    const priority = body.priority || 'normal';
-    const createdByType = body.created_by_type || 'employee';
-    const createdBy = body.created_by || 'Mitarbeiter';
-    const assignedTo = body.assigned_to || '';
-    const assignedUsers = Array.isArray(body.assigned_users) ? body.assigned_users : [];
+    const customerId = String(body.customer_id || '').trim();
+    const title = String(body.title || '').trim();
+    const description = String(body.description || '').trim();
+    const category = String(body.category || '').trim();
+    const priority = String(body.priority || 'normal').trim() || 'normal';
     const dueDate = body.due_date || null;
     const appointmentDate = body.appointment_date || null;
-    const customStatus = body.custom_status || '';
-    const templateId = body.template_id || '';
+    const assignedUsers = normalizeArray(body.assigned_users);
+    const participants = normalizeArray(body.participants);
+    const customerStatus = normalizeStatus(body.customer_status, 'neu');
+    const internalStatus = normalizeStatus(body.internal_status, 'neu');
+    const createdBy = String(body.created_by || 'Intern').trim() || 'Intern';
+    const createdByType = String(body.created_by_type || 'internal').trim() || 'internal';
 
-    if (!title.trim()) {
+    if (!customerId) {
       return Response.json(
         {
           success: false,
-          message: 'Überschrift fehlt.'
+          message: 'customer_id fehlt.'
         },
         { status: 400 }
       );
     }
 
-    const ticketNumber = buildTicketNumber();
+    if (!title) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Titel fehlt.'
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: customerRow, error: customerError } = await supabase
+      .from('customers')
+      .select('id, kundennummer, firmenname')
+      .eq('id', customerId)
+      .single();
+
+    if (customerError || !customerRow) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Mandant wurde nicht gefunden.'
+        },
+        { status: 404 }
+      );
+    }
 
     const insertPayload = {
-      ticket_number: ticketNumber,
-      kundennummer: kundennummer,
-      customer_name: customerName,
-      mandant_name: mandantName,
-      title: title,
-      description: description,
-      category: category,
-      priority: priority,
-      internal_status: 'neu',
-      customer_status: createdByType === 'customer' ? 'neu' : 'in_bearbeitung',
-      created_by_type: createdByType,
-      created_by: createdBy,
-      assigned_to: assignedTo,
+      ticket_number: buildTicketNumber(),
+      customer_id: customerRow.id,
+      kundennummer: String(customerRow.kundennummer || ''),
+      kundenname: String(customerRow.firmenname || ''),
+      title,
+      description,
+      category,
+      priority,
+      customer_status: customerStatus,
+      internal_status: internalStatus,
       assigned_users: assignedUsers,
+      participants,
       due_date: dueDate,
       appointment_date: appointmentDate,
-      custom_status: customStatus,
+      created_by: createdBy,
+      created_by_type: createdByType,
       updated_at: new Date().toISOString()
     };
 
-    const { data: ticketRow, error: ticketError } = await supabase
+    const { data: insertedRow, error: insertError } = await supabase
       .from('tickets')
-      .insert([insertPayload])
+      .insert(insertPayload)
       .select('*')
       .single();
 
-    if (ticketError) throw ticketError;
-
-    if (templateId) {
-      const { data: templateTasks, error: templateTasksError } = await supabase
-        .from('ticket_template_tasks')
-        .select('*')
-        .eq('template_id', templateId)
-        .order('sort_order', { ascending: true });
-
-      if (templateTasksError) throw templateTasksError;
-
-      if (templateTasks && templateTasks.length > 0) {
-        const taskRows = templateTasks.map((task, index) => ({
-          ticket_id: ticketRow.id,
-          title: task.title || '',
-          assigned_to: task.assigned_to || '',
-          due_date: null,
-          sort_order: typeof task.sort_order === 'number' ? task.sort_order : index + 1,
-          is_done: false
-        }));
-
-        const { error: insertTaskError } = await supabase
-          .from('ticket_tasks')
-          .insert(taskRows);
-
-        if (insertTaskError) throw insertTaskError;
-      }
+    if (insertError) {
+      throw new Error(insertError.message);
     }
 
     return Response.json({
       success: true,
-      message: 'Ticket wurde erstellt.',
-      data: mapTicket(ticketRow)
+      data: mapTicket(insertedRow)
     });
   } catch (error) {
     return Response.json(
