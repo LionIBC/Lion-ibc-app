@@ -5,29 +5,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+function normalizeArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (!value) return [];
+  return [];
+}
+
 function mapTicket(row) {
   if (!row) return null;
 
   return {
     id: row.id,
     ticket_number: row.ticket_number || '',
+    customer_id: row.customer_id || null,
     kundennummer: row.kundennummer || '',
-    customer_name: row.customer_name || '',
-    mandant_name: row.mandant_name || '',
+    kundenname: row.kundenname || '',
     title: row.title || '',
     description: row.description || '',
     category: row.category || '',
     priority: row.priority || 'normal',
-    internal_status: row.internal_status || 'neu',
     customer_status: row.customer_status || 'neu',
-    created_by_type: row.created_by_type || 'employee',
-    created_by: row.created_by || '',
-    assigned_to: row.assigned_to || '',
-    assigned_users: Array.isArray(row.assigned_users) ? row.assigned_users : [],
+    internal_status: row.internal_status || 'neu',
+    assigned_users: normalizeArray(row.assigned_users),
+    participants: normalizeArray(row.participants),
     due_date: row.due_date || null,
     appointment_date: row.appointment_date || null,
     custom_status: row.custom_status || '',
     internal_notes: row.internal_notes || '',
+    created_by: row.created_by || '',
+    created_by_type: row.created_by_type || '',
     created_at: row.created_at || null,
     updated_at: row.updated_at || null
   };
@@ -191,14 +197,44 @@ export async function PATCH(req, { params }) {
       updated_at: new Date().toISOString()
     };
 
+    if (body.customer_id !== undefined) {
+      const customerId = String(body.customer_id || '').trim();
+
+      if (customerId) {
+        const { data: customerRow, error: customerError } = await supabase
+          .from('customers')
+          .select('id, kundennummer, firmenname')
+          .eq('id', customerId)
+          .single();
+
+        if (customerError || !customerRow) {
+          return Response.json(
+            {
+              success: false,
+              message: 'Mandant wurde nicht gefunden.'
+            },
+            { status: 404 }
+          );
+        }
+
+        updatePayload.customer_id = customerRow.id;
+        updatePayload.kundennummer = String(customerRow.kundennummer || '');
+        updatePayload.kundenname = String(customerRow.firmenname || '');
+      } else {
+        updatePayload.customer_id = null;
+        updatePayload.kundennummer = '';
+        updatePayload.kundenname = '';
+      }
+    }
+
     if (body.title !== undefined) updatePayload.title = body.title;
     if (body.description !== undefined) updatePayload.description = body.description;
     if (body.category !== undefined) updatePayload.category = body.category;
     if (body.priority !== undefined) updatePayload.priority = body.priority;
     if (body.internal_status !== undefined) updatePayload.internal_status = body.internal_status;
     if (body.customer_status !== undefined) updatePayload.customer_status = body.customer_status;
-    if (body.assigned_to !== undefined) updatePayload.assigned_to = body.assigned_to;
-    if (body.assigned_users !== undefined) updatePayload.assigned_users = body.assigned_users;
+    if (body.assigned_users !== undefined) updatePayload.assigned_users = normalizeArray(body.assigned_users);
+    if (body.participants !== undefined) updatePayload.participants = normalizeArray(body.participants);
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null;
     if (body.appointment_date !== undefined) updatePayload.appointment_date = body.appointment_date || null;
     if (body.custom_status !== undefined) updatePayload.custom_status = body.custom_status || '';
