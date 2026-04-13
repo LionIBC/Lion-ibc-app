@@ -5,13 +5,12 @@ import { useEffect, useRef, useState } from 'react';
 const CATEGORY_OPTIONS = [
   { value: 'eingangsrechnung', label: 'Eingangsrechnungen' },
   { value: 'ausgangsrechnung', label: 'Ausgangsrechnungen' },
-  { value: 'schreiben_allgemein', label: 'Schreiben allgemein' },
   { value: 'vertraege', label: 'Verträge' },
   { value: 'kontoauszuege', label: 'Kontoauszüge' },
   { value: 'stammdaten', label: 'Stammdaten' },
-  { value: 'sonstiges', label: 'Sonstiges' } ];
+  { value: 'allgemein', label: 'Allgemein' } ];
 
-const TEST_CUSTOMER_ID = 'K-10023';
+// HIER DIE ECHTE UUID AUS public.customers EINTRAGEN const TEST_CUSTOMER_ID = 'HIER_DEINE_CUSTOMER_UUID';
 
 function formatFileSize(bytes) {
   const size = Number(bytes || 0);
@@ -41,12 +40,12 @@ function groupByCategory(documents) {
   }
 
   for (const doc of documents || []) {
-    const key = doc.category || 'sonstiges';
+    const key = doc.category || 'allgemein';
 
     if (!map.has(key)) {
       map.set(key, {
         key,
-        label: doc.category_label || key,
+        label: key,
         items: []
       });
     }
@@ -140,6 +139,14 @@ export default function PortalDokumentePage() {
   }
 
   async function uploadFiles() {
+    if (!TEST_CUSTOMER_ID || TEST_CUSTOMER_ID === 'HIER_DEINE_CUSTOMER_UUID') {
+      setStatusBox({
+        type: 'error',
+        message: 'Bitte zuerst die echte customer_id des Testkunden im Code eintragen.'
+      });
+      return;
+    }
+
     if (!files.length) {
       setStatusBox({
         type: 'error',
