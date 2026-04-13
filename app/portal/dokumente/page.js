@@ -10,7 +10,7 @@ const CATEGORY_OPTIONS = [
   { value: 'stammdaten', label: 'Stammdaten' },
   { value: 'allgemein', label: 'Allgemein' } ];
 
-// HIER DIE ECHTE UUID AUS public.customers EINTRAGEN const TEST_CUSTOMER_ID = 'HIER_DEINE_CUSTOMER_UUID';
+const TEST_CUSTOMER_ID = '04cff83b-b8d4-4853-89d1-7704b10b1ec6';
 
 function formatFileSize(bytes) {
   const size = Number(bytes || 0);
