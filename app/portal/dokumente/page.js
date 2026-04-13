@@ -1,6 +1,17 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+const CATEGORY_OPTIONS = [
+  { value: 'eingangsrechnung', label: 'Eingangsrechnungen' },
+  { value: 'ausgangsrechnung', label: 'Ausgangsrechnungen' },
+  { value: 'schreiben_allgemein', label: 'Schreiben allgemein' },
+  { value: 'vertraege', label: 'Verträge' },
+  { value: 'kontoauszuege', label: 'Kontoauszüge' },
+  { value: 'stammdaten', label: 'Stammdaten' },
+  { value: 'sonstiges', label: 'Sonstiges' } ];
+
+const TEST_CUSTOMER_ID = 'K-10023';
 
 function formatFileSize(bytes) {
   const size = Number(bytes || 0);
@@ -9,13 +20,81 @@ function formatFileSize(bytes) {
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`; }
 
+function formatDate(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleDateString('de-DE');
+  } catch {
+    return '';
+  }
+}
+
+function groupByCategory(documents) {
+  const map = new Map();
+
+  for (const option of CATEGORY_OPTIONS) {
+    map.set(option.value, {
+      key: option.value,
+      label: option.label,
+      items: []
+    });
+  }
+
+  for (const doc of documents || []) {
+    const key = doc.category || 'sonstiges';
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: doc.category_label || key,
+        items: []
+      });
+    }
+
+    map.get(key).items.push(doc);
+  }
+
+  return Array.from(map.values()).filter((group) => group.items.length > 0); }
+
 export default function PortalDokumentePage() {
   const fileInputRef = useRef(null);
 
+  const [documents, setDocuments] = useState([]);
   const [files, setFiles] = useState([]);
+  const [category, setCategory] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [statusBox, setStatusBox] = useState(null);
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  async function loadDocuments() {
+    try {
+      setLoading(true);
+      setStatusBox(null);
+
+      const res = await fetch(
+        `/api/documents?source=portal&customer_id=${encodeURIComponent(TEST_CUSTOMER_ID)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'Dokumente konnten nicht geladen werden.');
+      }
+
+      setDocuments(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Dokumente konnten nicht geladen werden.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function addFiles(fileList) {
     const nextFiles = Array.from(fileList || []);
@@ -69,12 +148,23 @@ export default function PortalDokumentePage() {
       return;
     }
 
+    if (!category) {
+      setStatusBox({
+        type: 'error',
+        message: 'Bitte eine Dokumentart auswählen.'
+      });
+      return;
+    }
+
     try {
       setUploading(true);
       setStatusBox(null);
 
       const formData = new FormData();
       formData.append('source', 'portal');
+      formData.append('category', category);
+      formData.append('customer_id', TEST_CUSTOMER_ID);
+      formData.append('created_by', 'customer');
 
       files.forEach((file) => {
         formData.append('files', file);
@@ -92,6 +182,8 @@ export default function PortalDokumentePage() {
       }
 
       setFiles([]);
+      setCategory('');
+
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -100,6 +192,8 @@ export default function PortalDokumentePage() {
         type: 'success',
         message: 'Datei(en) wurden erfolgreich hochgeladen.'
       });
+
+      await loadDocuments();
     } catch (error) {
       setStatusBox({
         type: 'error',
@@ -111,15 +205,17 @@ export default function PortalDokumentePage() {
     }
   }
 
+  const groupedDocuments = groupByCategory(documents);
+
   return (
     <main style={wrap}>
       <div style={container}>
         <section style={heroCard}>
           <div style={badge}>Kundenportal</div>
-          <h1 style={mainTitle}>Dokumente hochladen</h1>
+          <h1 style={mainTitle}>Dokumente</h1>
           <p style={heroText}>
-            Hier können Sie Unterlagen sicher an uns übermitteln. Mehrere Dateien
-            sind gleichzeitig möglich.
+            Hier können Sie Unterlagen direkt in die passende Dokumentart hochladen
+            und bereits vorhandene Dokumente herunterladen.
           </p>
         </section>
 
@@ -127,7 +223,24 @@ export default function PortalDokumentePage() {
         {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
         <section style={card}>
-          <h2 style={sectionTitle}>Dateien</h2>
+          <h2 style={sectionTitle}>Neue Dokumente hochladen</h2>
+
+          <div style={field}>
+            <label style={label}>Dokumentart</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={input}
+              disabled={uploading}
+            >
+              <option value="">Bitte wählen</option>
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div
             style={{
@@ -197,6 +310,61 @@ export default function PortalDokumentePage() {
             </button>
           </div>
         </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Meine Dokumente</h2>
+
+          {loading ? (
+            <div style={infoBox}>Dokumente werden geladen…</div>
+          ) : groupedDocuments.length === 0 ? (
+            <div style={infoBox}>Noch keine Dokumente vorhanden.</div>
+          ) : (
+            <div style={groupList}>
+              {groupedDocuments.map((group) => (
+                <div key={group.key} style={groupCard}>
+                  <div style={groupTitle}>{group.label}</div>
+
+                  <div style={documentList}>
+                    {group.items.map((doc) => (
+                      <div key={doc.id} style={documentCard}>
+                        <div>
+                          <div style={documentName}>{doc.file_name}</div>
+                          <div style={documentMeta}>
+                            {formatFileSize(doc.file_size)} · {formatDate(doc.created_at)}
+                          </div>
+                        </div>
+
+                        <div style={documentActions}>
+                          {doc.open_url ? (
+                            <a
+                              href={doc.open_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={openLink}
+                            >
+                              Öffnen
+                            </a>
+                          ) : null}
+
+                          {doc.download_url ? (
+                            <a
+                              href={doc.download_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={downloadLink}
+                            >
+                              Download
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
@@ -262,6 +430,27 @@ const sectionTitle = {
   margin: '0 0 16px 0',
   fontSize: 22,
   color: '#101828'
+};
+
+const field = {
+  display: 'grid',
+  gap: 8,
+  marginBottom: 16
+};
+
+const label = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#344054'
+};
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  boxSizing: 'border-box',
+  background: '#fff'
 };
 
 const dropzone = {
@@ -387,6 +576,88 @@ const successBox = {
   background: '#ecfdf3',
   border: '1px solid #abefc6',
   color: '#067647'
+};
+
+const groupList = {
+  display: 'grid',
+  gap: 16
+};
+
+const groupCard = {
+  background: '#fcfcfd',
+  border: '1px solid #eceff3',
+  borderRadius: 16,
+  padding: 16
+};
+
+const groupTitle = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: '#101828',
+  marginBottom: 12
+};
+
+const documentList = {
+  display: 'grid',
+  gap: 10
+};
+
+const documentCard = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  padding: 14,
+  borderRadius: 14,
+  background: '#fff',
+  border: '1px solid #eceff3'
+};
+
+const documentName = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const documentMeta = {
+  marginTop: 4,
+  fontSize: 12,
+  color: '#667085'
+};
+
+const documentActions = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap'
+};
+
+const openLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#8c6b43',
+  color: '#fff',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
+};
+
+const downloadLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#fff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
+};
+
 };
 
 
