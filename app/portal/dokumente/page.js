@@ -657,7 +657,3 @@ const downloadLink = {
   fontWeight: 700,
   fontSize: 14
 };
-
-};
-
-
