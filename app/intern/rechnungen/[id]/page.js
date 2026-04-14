@@ -8,6 +8,7 @@ export default function RechnungDetailPage() {
 
   const [invoiceData, setInvoiceData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [finalizing, setFinalizing] = useState(false);
 
   useEffect(() => {
     loadInvoice();
@@ -41,6 +42,31 @@ export default function RechnungDetailPage() {
     loadInvoice();
   }
 
+  async function finalizeInvoice() {
+    const confirmed = window.confirm('Rechnung finalisieren und sperren?');
+    if (!confirmed) return;
+
+    try {
+      setFinalizing(true);
+
+      const res = await fetch(`/api/invoices/${id}/finalize`, {
+        method: 'POST'
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'Finalisieren fehlgeschlagen.');
+        return;
+      }
+
+      await loadInvoice();
+      window.open(`/api/invoices/${id}/pdf`, '_blank');
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
   function openPdf() {
     window.open(`/api/invoices/${id}/pdf`, '_blank');
   }
@@ -59,7 +85,8 @@ export default function RechnungDetailPage() {
           <h1>Rechnung {invoice.invoice_number || '-'}</h1>
           <p><strong>Kunde:</strong> {invoice.kundenname} ({invoice.kundennummer})</p>
           <p><strong>Status:</strong> {invoice.status}</p>
-          {invoice.cancelled && <p style={{ color: 'red' }}>STORNIERT</p>}
+          <p><strong>Final:</strong> {invoice.is_final ? 'Ja' : 'Nein'}</p>
+          {invoice.cancelled && <p style={{ color: '#b42318', fontWeight: 700 }}>STORNIERT</p>}
         </section>
 
         <section style={card}>
@@ -79,15 +106,25 @@ export default function RechnungDetailPage() {
           <p>Netto: {invoice.subtotal} €</p>
           <p>Steuer: {invoice.tax_total} €</p>
           <p><strong>Gesamt: {invoice.total} €</strong></p>
+          {invoice.pdf_hash ? <p><strong>PDF-Hash:</strong> {invoice.pdf_hash}</p> : null}
         </section>
 
         <section style={card}>
-          <button style={button} onClick={openPdf}>PDF öffnen</button>
-          {!invoice.cancelled && (
+          {invoice.pdf_path ? (
+            <button style={button} onClick={openPdf}>PDF öffnen</button>
+          ) : null}
+
+          {!invoice.is_final && !invoice.cancelled ? (
+            <button style={button} onClick={finalizeInvoice} disabled={finalizing}>
+              {finalizing ? 'Finalisiert...' : 'Finalisieren + PDF'}
+            </button>
+          ) : null}
+
+          {!invoice.cancelled ? (
             <button style={dangerButton} onClick={cancelInvoice}>
               Rechnung stornieren
             </button>
-          )}
+          ) : null}
         </section>
 
       </div>
