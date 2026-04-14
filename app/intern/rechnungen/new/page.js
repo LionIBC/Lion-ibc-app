@@ -22,7 +22,10 @@ export default function NeueRechnungPage() {
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
   const [series, setSeries] = useState([]);
+  const [orders, setOrders] = useState([]);
+
   const [customerId, setCustomerId] = useState('');
+  const [orderId, setOrderId] = useState('');
   const [seriesId, setSeriesId] = useState('');
   const [invoiceType, setInvoiceType] = useState('standard');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
@@ -34,12 +37,14 @@ export default function NeueRechnungPage() {
   const [internalNotes, setInternalNotes] = useState('');
   const [lines, setLines] = useState([emptyLine()]);
   const [saving, setSaving] = useState(false);
+  const [loadingOrder, setLoadingOrder] = useState(false);
   const [statusBox, setStatusBox] = useState(null);
 
   useEffect(() => {
     loadCustomers();
     loadServices();
     loadSeries();
+    loadOrders();
   }, []);
 
   async function loadCustomers() {
@@ -70,10 +75,21 @@ export default function NeueRechnungPage() {
     try {
       const res = await fetch('/api/invoice-series');
       if (!res.ok) return;
-
       const data = await res.json();
       if (data.success) {
         setSeries(data.data || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function loadOrders() {
+    try {
+      const res = await fetch('/api/orders');
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(data.data || []);
       }
     } catch (error) {
       console.error(error);
@@ -108,6 +124,71 @@ export default function NeueRechnungPage() {
           : line
       )
     );
+  }
+
+  async function applyOrder(orderValue) {
+    setOrderId(orderValue);
+
+    if (!orderValue) return;
+
+    try {
+      setLoadingOrder(true);
+
+      const res = await fetch(`/api/orders/${orderValue}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Auftrag konnte nicht geladen werden.');
+      }
+
+      const order = data.data?.order;
+      const orderLines = data.data?.lines || [];
+
+      if (!order) {
+        throw new Error('Auftrag konnte nicht geladen werden.');
+      }
+
+      setCustomerId(order.customer_id || '');
+      setNotes((prev) => prev || order.notes || '');
+      setInternalNotes((prev) => prev || order.internal_notes || '');
+      setDueDate((prev) => prev || order.valid_until || '');
+
+      const mappedLines = orderLines.map((line) => ({
+        service_catalog_id: '',
+        description: line.description || '',
+        quantity: Number(line.quantity || 1),
+        unit_price: Number(line.unit_price || 0),
+        discount_percent: Number(line.discount_percent || 0),
+        tax_rate: Number(line.tax_rate || 21)
+      }));
+
+      if (invoiceType === 'final') {
+        const advanceTotal = Number(data.data?.advance_total || 0);
+        if (advanceTotal > 0) {
+          mappedLines.push({
+            service_catalog_id: '',
+            description: `Abzug bereits berechneter Abschläge zu Auftrag ${order.order_number}`,
+            quantity: 1,
+            unit_price: Number((-1 * advanceTotal).toFixed(2)),
+            discount_percent: 0,
+            tax_rate: orderLines[0]?.tax_rate ? Number(orderLines[0].tax_rate) : 21
+          });
+        }
+      }
+
+      setLines(mappedLines.length ? mappedLines : [emptyLine()]);
+      setStatusBox({
+        type: 'success',
+        message: `Auftrag ${order.order_number} wurde übernommen.`
+      });
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'Auftrag konnte nicht übernommen werden.'
+      });
+    } finally {
+      setLoadingOrder(false);
+    }
   }
 
   function addLine() {
@@ -187,6 +268,7 @@ export default function NeueRechnungPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_id: customerId,
+          order_id: orderId || null,
           series_id: seriesId || null,
           invoice_type: invoiceType,
           issue_date: issueDate || null,
@@ -226,11 +308,12 @@ export default function NeueRechnungPage() {
           <div style={badge}>Intern</div>
           <h1 style={mainTitle}>Neue Rechnung</h1>
           <p style={heroText}>
-            Rechnung erfassen, Leistungen übernehmen und direkt als Entwurf speichern.
+            Rechnung erfassen, Leistungen übernehmen und optional direkt auf einen Auftrag beziehen.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
+        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
         <section style={card}>
           <h2 style={sectionTitle}>Kopfbereich</h2>
@@ -249,6 +332,23 @@ export default function NeueRechnungPage() {
             </div>
 
             <div style={field}>
+              <label style={label}>Auftrag</label>
+              <select
+                value={orderId}
+                onChange={(e) => applyOrder(e.target.value)}
+                style={input}
+                disabled={loadingOrder}
+              >
+                <option value="">Ohne Auftrag</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.order_number} · {order.kundenname}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={field}>
               <label style={label}>Rechnungsart</label>
               <select value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)} style={input}>
                 <option value="standard">Rechnung</option>
@@ -257,7 +357,9 @@ export default function NeueRechnungPage() {
                 <option value="final">Schlussrechnung</option>
               </select>
             </div>
+          </div>
 
+          <div style={grid3}>
             <div style={field}>
               <label style={label}>Serie</label>
               <select value={seriesId} onChange={(e) => setSeriesId(e.target.value)} style={input}>
@@ -269,17 +371,10 @@ export default function NeueRechnungPage() {
                 ))}
               </select>
             </div>
-          </div>
 
-          <div style={grid3}>
             <div style={field}>
               <label style={label}>Rechnungsdatum</label>
               <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} style={input} />
-            </div>
-
-            <div style={field}>
-              <label style={label}>Leistungsdatum</label>
-              <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} style={input} />
             </div>
 
             <div style={field}>
@@ -290,6 +385,11 @@ export default function NeueRechnungPage() {
 
           <div style={grid2}>
             <div style={field}>
+              <label style={label}>Leistungsdatum</label>
+              <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} style={input} />
+            </div>
+
+            <div style={field}>
               <label style={label}>Zahlungsart</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={input}>
                 <option value="transferencia">Überweisung</option>
@@ -298,11 +398,11 @@ export default function NeueRechnungPage() {
                 <option value="domiciliacion">Lastschrift</option>
               </select>
             </div>
+          </div>
 
-            <div style={field}>
-              <label style={label}>Zahlungsbedingungen</label>
-              <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} style={input} placeholder="z. B. 14 Tage netto" />
-            </div>
+          <div style={field}>
+            <label style={label}>Zahlungsbedingungen</label>
+            <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} style={input} placeholder="z. B. 14 Tage netto" />
           </div>
         </section>
 
@@ -615,3 +715,10 @@ const errorBox = {
   color: '#b42318'
 };
 
+const successBox = {
+  padding: '14px 16px',
+  borderRadius: 14,
+  background: '#ecfdf3',
+  border: '1px solid #abefc6',
+  color: '#067647'
+};
