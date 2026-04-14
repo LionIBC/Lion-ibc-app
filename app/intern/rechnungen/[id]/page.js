@@ -61,14 +61,14 @@ export default function RechnungDetailPage() {
       }
 
       await loadInvoice();
-      window.open(`/api/invoices/${id}/pdf`, '_blank');
+      window.open(`/api/invoices/pdf/${id}`, '_blank');
     } finally {
       setFinalizing(false);
     }
   }
 
-  function openPdf() {
-    window.open(`/api/invoices/${id}/pdf`, '_blank');
+  function downloadPdf() {
+    window.open(`/api/invoices/pdf/${id}`, '_blank');
   }
 
   if (loading) return <div style={{ padding: 40 }}>Lädt...</div>;
@@ -80,13 +80,19 @@ export default function RechnungDetailPage() {
   return (
     <main style={{ padding: 30, background: '#f7f5ef', minHeight: '100vh' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 20 }}>
-
         <section style={card}>
           <h1>Rechnung {invoice.invoice_number || '-'}</h1>
           <p><strong>Kunde:</strong> {invoice.kundenname} ({invoice.kundennummer})</p>
           <p><strong>Status:</strong> {invoice.status}</p>
           <p><strong>Final:</strong> {invoice.is_final ? 'Ja' : 'Nein'}</p>
           {invoice.cancelled && <p style={{ color: '#b42318', fontWeight: 700 }}>STORNIERT</p>}
+        </section>
+
+        <section style={card}>
+          <h2>Leistungszeitraum</h2>
+          <p><strong>Von:</strong> {invoice.period_start || '-'}</p>
+          <p><strong>Bis:</strong> {invoice.period_end || '-'}</p>
+          <p><strong>Typ:</strong> {invoice.period_type || '-'}</p>
         </section>
 
         <section style={card}>
@@ -110,9 +116,9 @@ export default function RechnungDetailPage() {
         </section>
 
         <section style={card}>
-          {invoice.pdf_path ? (
-            <button style={button} onClick={openPdf}>PDF öffnen</button>
-          ) : null}
+          <button style={button} onClick={downloadPdf}>
+            PDF herunterladen
+          </button>
 
           {!invoice.is_final && !invoice.cancelled ? (
             <button style={button} onClick={finalizeInvoice} disabled={finalizing}>
@@ -126,7 +132,6 @@ export default function RechnungDetailPage() {
             </button>
           ) : null}
         </section>
-
       </div>
     </main>
   );
