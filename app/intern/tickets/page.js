@@ -490,3 +490,4 @@ const emptyTicket = {
   textAlign: 'center',
   fontSize: 14
 };
+
