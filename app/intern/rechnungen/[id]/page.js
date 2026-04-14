@@ -28,6 +28,19 @@ export default function RechnungDetailPage() {
     }
   }
 
+  async function cancelInvoice() {
+    const reason = prompt('Grund für Storno:');
+    if (!reason) return;
+
+    await fetch(`/api/invoices/${id}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, user: 'Intern' })
+    });
+
+    loadInvoice();
+  }
+
   function openPdf() {
     window.open(`/api/invoices/${id}/pdf`, '_blank');
   }
@@ -41,15 +54,16 @@ export default function RechnungDetailPage() {
   return (
     <main style={{ padding: 30, background: '#f7f5ef', minHeight: '100vh' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 20 }}>
+
         <section style={card}>
           <h1>Rechnung {invoice.invoice_number || '-'}</h1>
           <p><strong>Kunde:</strong> {invoice.kundenname} ({invoice.kundennummer})</p>
           <p><strong>Status:</strong> {invoice.status}</p>
+          {invoice.cancelled && <p style={{ color: 'red' }}>STORNIERT</p>}
         </section>
 
         <section style={card}>
           <h2>Positionen</h2>
-
           {lines.map((line, i) => (
             <div key={i} style={row}>
               <div>{line.description}</div>
@@ -69,8 +83,13 @@ export default function RechnungDetailPage() {
 
         <section style={card}>
           <button style={button} onClick={openPdf}>PDF öffnen</button>
-          <button style={button}>DATEV Export (später)</button>
+          {!invoice.cancelled && (
+            <button style={dangerButton} onClick={cancelInvoice}>
+              Rechnung stornieren
+            </button>
+          )}
         </section>
+
       </div>
     </main>
   );
@@ -100,3 +119,11 @@ const button = {
   cursor: 'pointer'
 };
 
+const dangerButton = {
+  padding: 10,
+  borderRadius: 8,
+  border: 'none',
+  background: '#b42318',
+  color: '#fff',
+  cursor: 'pointer'
+};
