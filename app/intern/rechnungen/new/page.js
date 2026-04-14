@@ -18,6 +18,62 @@ function emptyLine() {
   };
 }
 
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function formatDateInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function calculatePeriodFromLogic(logic, baseDate = new Date()) {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+
+  if (logic === 'next_month') {
+    const start = new Date(year, month + 1, 1);
+    const end = endOfMonth(start);
+    return { periodStart: formatDateInput(start), periodEnd: formatDateInput(end) };
+  }
+
+  if (logic === 'previous_month') {
+    const start = new Date(year, month - 1, 1);
+    const end = endOfMonth(start);
+    return { periodStart: formatDateInput(start), periodEnd: formatDateInput(end) };
+  }
+
+  if (logic === 'current_month') {
+    const start = new Date(year, month, 1);
+    const end = endOfMonth(start);
+    return { periodStart: formatDateInput(start), periodEnd: formatDateInput(end) };
+  }
+
+  if (logic === 'previous_quarter') {
+    const quarter = Math.floor(month / 3);
+    const startMonth = quarter * 3 - 3;
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, startMonth + 3, 0);
+    return { periodStart: formatDateInput(start), periodEnd: formatDateInput(end) };
+  }
+
+  if (logic === 'current_quarter') {
+    const quarter = Math.floor(month / 3);
+    const startMonth = quarter * 3;
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, startMonth + 3, 0);
+    return { periodStart: formatDateInput(start), periodEnd: formatDateInput(end) };
+  }
+
+  return { periodStart: '', periodEnd: '' };
+}
+
 export default function NeueRechnungPage() {
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
@@ -33,12 +89,22 @@ export default function NeueRechnungPage() {
   const [dueDate, setDueDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('transferencia');
   const [paymentTerms, setPaymentTerms] = useState('');
+
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [periodLogicPreset, setPeriodLogicPreset] = useState('');
+
   const [notes, setNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [lines, setLines] = useState([emptyLine()]);
   const [saving, setSaving] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [statusBox, setStatusBox] = useState(null);
+
+  const [makeRecurring, setMakeRecurring] = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState('monthly');
+  const [executionDay, setExecutionDay] = useState(1);
+  const [recurringPeriodLogic, setRecurringPeriodLogic] = useState('current_month');
 
   useEffect(() => {
     loadCustomers();
@@ -51,9 +117,7 @@ export default function NeueRechnungPage() {
     try {
       const res = await fetch('/api/customers');
       const data = await res.json();
-      if (res.ok) {
-        setCustomers(data.data || []);
-      }
+      if (res.ok) setCustomers(data.data || []);
     } catch (error) {
       console.error(error);
     }
@@ -63,9 +127,7 @@ export default function NeueRechnungPage() {
     try {
       const res = await fetch('/api/services?active_only=true');
       const data = await res.json();
-      if (res.ok) {
-        setServices(data.data || []);
-      }
+      if (res.ok) setServices(data.data || []);
     } catch (error) {
       console.error(error);
     }
@@ -76,9 +138,7 @@ export default function NeueRechnungPage() {
       const res = await fetch('/api/invoice-series');
       if (!res.ok) return;
       const data = await res.json();
-      if (data.success) {
-        setSeries(data.data || []);
-      }
+      if (data.success) setSeries(data.data || []);
     } catch (error) {
       console.error(error);
     }
@@ -88,9 +148,7 @@ export default function NeueRechnungPage() {
     try {
       const res = await fetch('/api/orders');
       const data = await res.json();
-      if (res.ok) {
-        setOrders(data.data || []);
-      }
+      if (res.ok) setOrders(data.data || []);
     } catch (error) {
       console.error(error);
     }
@@ -191,6 +249,13 @@ export default function NeueRechnungPage() {
     }
   }
 
+  function applyPeriodPreset(preset) {
+    setPeriodLogicPreset(preset);
+    const calculated = calculatePeriodFromLogic(preset, new Date(issueDate || new Date()));
+    setPeriodStart(calculated.periodStart);
+    setPeriodEnd(calculated.periodEnd);
+  }
+
   function addLine() {
     setLines((prev) => [...prev, emptyLine()]);
   }
@@ -274,6 +339,9 @@ export default function NeueRechnungPage() {
           issue_date: issueDate || null,
           service_date: serviceDate || null,
           due_date: dueDate || null,
+          period_start: periodStart || null,
+          period_end: periodEnd || null,
+          period_type: periodLogicPreset || null,
           payment_method: paymentMethod,
           payment_terms: paymentTerms,
           notes,
@@ -288,6 +356,27 @@ export default function NeueRechnungPage() {
 
       if (!res.ok) {
         throw new Error(data.message || 'Rechnung konnte nicht erstellt werden.');
+      }
+
+      if (makeRecurring) {
+        const recurringRes = await fetch('/api/recurring-invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: customerId,
+            template_invoice_id: data.data.id,
+            interval: recurringInterval,
+            execution_day: executionDay,
+            period_logic: recurringPeriodLogic,
+            active: true
+          })
+        });
+
+        const recurringData = await recurringRes.json();
+
+        if (!recurringRes.ok) {
+          throw new Error(recurringData.message || 'Wiederkehrende Rechnung konnte nicht gespeichert werden.');
+        }
       }
 
       window.location.href = `/intern/rechnungen/${data.data.id}`;
@@ -308,7 +397,7 @@ export default function NeueRechnungPage() {
           <div style={badge}>Intern</div>
           <h1 style={mainTitle}>Neue Rechnung</h1>
           <p style={heroText}>
-            Rechnung erfassen, Leistungen übernehmen und optional direkt auf einen Auftrag beziehen.
+            Rechnung erfassen, Leistungen übernehmen, optional auf einen Auftrag beziehen und bei Bedarf als wiederkehrende Rechnung speichern.
           </p>
         </section>
 
@@ -407,6 +496,34 @@ export default function NeueRechnungPage() {
         </section>
 
         <section style={card}>
+          <h2 style={sectionTitle}>Leistungszeitraum</h2>
+
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>Zeitraum-Vorlage</label>
+              <select value={periodLogicPreset} onChange={(e) => applyPeriodPreset(e.target.value)} style={input}>
+                <option value="">Manuell</option>
+                <option value="current_month">Aktueller Monat</option>
+                <option value="previous_month">Vergangener Monat</option>
+                <option value="next_month">Nächster Monat</option>
+                <option value="current_quarter">Aktuelles Quartal</option>
+                <option value="previous_quarter">Vergangenes Quartal</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Leistungszeitraum von</label>
+              <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} style={input} />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Leistungszeitraum bis</label>
+              <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} style={input} />
+            </div>
+          </div>
+        </section>
+
+        <section style={card}>
           <div style={cardHeader}>
             <h2 style={sectionTitleNoMargin}>Positionen</h2>
             <button type="button" onClick={addLine} style={secondaryButton}>
@@ -484,6 +601,59 @@ export default function NeueRechnungPage() {
             <div>Steuer: <strong>{totals.tax_total.toFixed(2)} €</strong></div>
             <div>Gesamt: <strong>{totals.total.toFixed(2)} €</strong></div>
           </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Wiederkehrende Rechnung</h2>
+
+          <label style={checkboxRow}>
+            <input
+              type="checkbox"
+              checked={makeRecurring}
+              onChange={(e) => setMakeRecurring(e.target.checked)}
+            />
+            <span>Diesen Beleg als wiederkehrende Rechnung speichern</span>
+          </label>
+
+          {makeRecurring ? (
+            <div style={grid3}>
+              <div style={field}>
+                <label style={label}>Intervall</label>
+                <select value={recurringInterval} onChange={(e) => setRecurringInterval(e.target.value)} style={input}>
+                  <option value="monthly">Monatlich</option>
+                  <option value="quarterly">Quartalsweise</option>
+                  <option value="yearly">Jährlich</option>
+                </select>
+              </div>
+
+              <div style={field}>
+                <label style={label}>Ausführungstag</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={executionDay}
+                  onChange={(e) => setExecutionDay(e.target.value)}
+                  style={input}
+                />
+              </div>
+
+              <div style={field}>
+                <label style={label}>Zeitraum-Logik</label>
+                <select
+                  value={recurringPeriodLogic}
+                  onChange={(e) => setRecurringPeriodLogic(e.target.value)}
+                  style={input}
+                >
+                  <option value="current_month">Aktueller Monat</option>
+                  <option value="previous_month">Vergangener Monat</option>
+                  <option value="next_month">Nächster Monat</option>
+                  <option value="current_quarter">Aktuelles Quartal</option>
+                  <option value="previous_quarter">Vergangenes Quartal</option>
+                </select>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section style={card}>
@@ -612,6 +782,15 @@ const label = {
   color: '#344054'
 };
 
+const checkboxRow = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 16,
+  color: '#344054',
+  fontWeight: 600
+};
+
 const input = {
   width: '100%',
   padding: 12,
@@ -722,3 +901,4 @@ const successBox = {
   border: '1px solid #abefc6',
   color: '#067647'
 };
+
