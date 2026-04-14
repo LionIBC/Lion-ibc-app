@@ -1,1 +1,102 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+
+export default function RechnungDetailPage() {
+  const { id } = useParams();
+
+  const [invoiceData, setInvoiceData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadInvoice();
+  }, []);
+
+  async function loadInvoice() {
+    try {
+      const res = await fetch(`/api/invoices/${id}`);
+      const data = await res.json();
+
+      if (res.ok) {
+        setInvoiceData(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openPdf() {
+    window.open(`/api/invoices/${id}/pdf`, '_blank');
+  }
+
+  if (loading) return <div style={{ padding: 40 }}>Lädt...</div>;
+  if (!invoiceData?.invoice) return <div style={{ padding: 40 }}>Keine Daten gefunden</div>;
+
+  const invoice = invoiceData.invoice;
+  const lines = invoiceData.lines || [];
+
+  return (
+    <main style={{ padding: 30, background: '#f7f5ef', minHeight: '100vh' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 20 }}>
+        <section style={card}>
+          <h1>Rechnung {invoice.invoice_number || '-'}</h1>
+          <p><strong>Kunde:</strong> {invoice.kundenname} ({invoice.kundennummer})</p>
+          <p><strong>Status:</strong> {invoice.status}</p>
+        </section>
+
+        <section style={card}>
+          <h2>Positionen</h2>
+
+          {lines.map((line, i) => (
+            <div key={i} style={row}>
+              <div>{line.description}</div>
+              <div>{line.quantity}</div>
+              <div>{line.unit_price} €</div>
+              <div>{line.line_total} €</div>
+            </div>
+          ))}
+        </section>
+
+        <section style={card}>
+          <h2>Summen</h2>
+          <p>Netto: {invoice.subtotal} €</p>
+          <p>Steuer: {invoice.tax_total} €</p>
+          <p><strong>Gesamt: {invoice.total} €</strong></p>
+        </section>
+
+        <section style={card}>
+          <button style={button} onClick={openPdf}>PDF öffnen</button>
+          <button style={button}>DATEV Export (später)</button>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+const card = {
+  background: '#fff',
+  padding: 20,
+  borderRadius: 12
+};
+
+const row = {
+  display: 'grid',
+  gridTemplateColumns: '2fr 1fr 1fr 1fr',
+  gap: 10,
+  padding: 10,
+  borderBottom: '1px solid #eee'
+};
+
+const button = {
+  padding: 10,
+  marginRight: 10,
+  borderRadius: 8,
+  border: 'none',
+  background: '#8c6b43',
+  color: '#fff',
+  cursor: 'pointer'
+};
 
