@@ -1,4 +1,4 @@
-use client';
+'use client';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -69,7 +69,7 @@ export default function InternDokumentePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [statusBox, setStatusBox] = useState(null);
-  const [isDragActive, setIsDragActive] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -88,11 +88,11 @@ export default function InternDokumentePage() {
         throw new Error(data?.message || data?.error || 'Kunden konnten nicht geladen werden.');
       }
 
-      const list = Array.isArray(data?.data) ? data.data : [];
-      setCustomers(list);
+      const rows = Array.isArray(data?.data) ? data.data : [];
+      setCustomers(rows);
 
-      if (!selectedCustomerId && list.length > 0) {
-        setSelectedCustomerId(list[0].id);
+      if (rows.length > 0 && !selectedCustomerId) {
+        setSelectedCustomerId(rows[0].id);
       }
     } catch (error) {
       setStatusBox({
@@ -105,7 +105,6 @@ export default function InternDokumentePage() {
   async function loadDocuments() {
     try {
       setLoading(true);
-      setStatusBox(null);
 
       const params = new URLSearchParams();
       params.set('source', 'intern');
@@ -147,30 +146,27 @@ export default function InternDokumentePage() {
     });
   }
 
-  function removeFile(indexToRemove) {
-    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+  function removeFile(index) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function handleDrop(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragActive(false);
-
-    if (event.dataTransfer?.files?.length) {
-      addFiles(event.dataTransfer.files);
-    }
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    addFiles(e.dataTransfer.files);
   }
 
-  function handleDragOver(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragActive(true);
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
   }
 
-  function handleDragLeave(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragActive(false);
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
   }
 
   async function uploadFiles() {
@@ -180,7 +176,7 @@ export default function InternDokumentePage() {
     }
 
     if (!category) {
-      setStatusBox({ type: 'error', message: 'Bitte eine Dokumentart auswählen.' });
+      setStatusBox({ type: 'error', message: 'Bitte zuerst eine Dokumentart auswählen.' });
       return;
     }
 
@@ -197,7 +193,7 @@ export default function InternDokumentePage() {
       formData.append('customer_id', selectedCustomerId);
       formData.append('category', category);
       formData.append('source', 'intern');
-      formData.append('created_by', 'intern');
+      formData.append('created_by', 'mitarbeiter');
 
       files.forEach((file) => {
         formData.append('files', file);
@@ -216,12 +212,11 @@ export default function InternDokumentePage() {
 
       setFiles([]);
       setCategory('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setStatusBox({ type: 'success', message: 'Upload erfolgreich.' });
 
-      setStatusBox({
-        type: 'success',
-        message: 'Datei(en) wurden erfolgreich hochgeladen.'
-      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
 
       await loadDocuments();
     } catch (error) {
@@ -231,7 +226,7 @@ export default function InternDokumentePage() {
       });
     } finally {
       setUploading(false);
-      setIsDragActive(false);
+      setDragActive(false);
     }
   }
 
@@ -250,11 +245,7 @@ export default function InternDokumentePage() {
         throw new Error(data?.message || 'Dokument konnte nicht gelöscht werden.');
       }
 
-      setStatusBox({
-        type: 'success',
-        message: 'Dokument wurde gelöscht.'
-      });
-
+      setStatusBox({ type: 'success', message: 'Dokument wurde gelöscht.' });
       await loadDocuments();
     } catch (error) {
       setStatusBox({
@@ -273,7 +264,7 @@ export default function InternDokumentePage() {
           <div style={badge}>Intern</div>
           <h1 style={mainTitle}>Dokumentenverwaltung</h1>
           <p style={heroText}>
-            Dokumente können kategorisiert hochgeladen, nach Mandant gefiltert und intern gelöscht werden.
+            Dokumente können Mandanten zugeordnet, kategorisiert hochgeladen und intern verwaltet werden.
           </p>
         </section>
 
@@ -290,12 +281,11 @@ export default function InternDokumentePage() {
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
                 style={input}
-                disabled={uploading}
               >
                 <option value="">Bitte wählen</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.firmenname} ({customer.kundennummer})
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.firmenname} ({c.kundennummer})
                   </option>
                 ))}
               </select>
@@ -307,12 +297,11 @@ export default function InternDokumentePage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 style={input}
-                disabled={uploading}
               >
                 <option value="">Bitte wählen</option>
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
                   </option>
                 ))}
               </select>
@@ -320,26 +309,24 @@ export default function InternDokumentePage() {
           </div>
 
           <div
-            style={{
-              ...dropzone,
-              ...(isDragActive ? dropzoneActive : {})
-            }}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragEnter={handleDragOver}
             onDragLeave={handleDragLeave}
+            style={{
+              ...dropzone,
+              ...(dragActive ? dropzoneActive : {})
+            }}
           >
             <div style={dropzoneTitle}>Dateien hier hineinziehen</div>
-            <div style={dropzoneText}>
-              oder per Klick auswählen. Mehrere Dateien sind möglich.
-            </div>
+            <div style={dropzoneText}>oder per Klick auswählen. Mehrere Dateien sind möglich.</div>
 
             <input
-              ref={fileInputRef}
               type="file"
               multiple
+              ref={fileInputRef}
+              hidden
               onChange={(e) => addFiles(e.target.files)}
-              style={{ display: 'none' }}
             />
 
             <button
@@ -352,38 +339,28 @@ export default function InternDokumentePage() {
             </button>
           </div>
 
-          {files.length === 0 ? (
-            <div style={infoBox}>Noch keine Dateien ausgewählt.</div>
-          ) : (
+          {files.length > 0 ? (
             <div style={fileList}>
-              {files.map((file, index) => (
-                <div key={`${file.name}-${file.size}-${index}`} style={fileCard}>
+              {files.map((file, i) => (
+                <div key={`${file.name}-${file.size}-${i}`} style={fileCard}>
                   <div style={fileInfo}>
                     <div style={fileName}>{file.name}</div>
                     <div style={fileMeta}>{formatFileSize(file.size)}</div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    style={removeButton}
-                    disabled={uploading}
-                  >
+                  <button type="button" onClick={() => removeFile(i)} style={removeButton}>
                     Entfernen
                   </button>
                 </div>
               ))}
             </div>
+          ) : (
+            <div style={infoBox}>Noch keine Dateien ausgewählt.</div>
           )}
 
           <div style={actionRow}>
-            <button
-              type="button"
-              onClick={uploadFiles}
-              style={saveButton}
-              disabled={uploading}
-            >
-              {uploading ? 'Lädt hoch…' : 'Dateien hochladen'}
+            <button type="button" onClick={uploadFiles} style={saveButton} disabled={uploading}>
+              {uploading ? 'Lädt hoch…' : 'Upload starten'}
             </button>
           </div>
         </section>
@@ -400,9 +377,9 @@ export default function InternDokumentePage() {
                 style={input}
               >
                 <option value="">Alle</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.firmenname} ({customer.kundennummer})
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.firmenname} ({c.kundennummer})
                   </option>
                 ))}
               </select>
@@ -416,9 +393,9 @@ export default function InternDokumentePage() {
                 style={input}
               >
                 <option value="">Alle</option>
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
                   </option>
                 ))}
               </select>
@@ -441,7 +418,7 @@ export default function InternDokumentePage() {
                         <div>
                           <div style={documentName}>{doc.file_name}</div>
                           <div style={documentMeta}>
-                            {doc.customer_id || 'Ohne Mandant'} · {formatFileSize(doc.file_size)} · {formatDate(doc.created_at)}
+                            {formatFileSize(doc.file_size)} · {formatDate(doc.created_at)}
                           </div>
                         </div>
 
@@ -475,41 +452,296 @@ export default function InternDokumentePage() {
   );
 }
 
-const wrap = { padding: 30, background: '#f7f5ef', minHeight: '100vh' };
-const container = { maxWidth: 1180, margin: '0 auto', display: 'grid', gap: 20 };
-const heroCard = { background: '#fff', padding: 28, borderRadius: 20, border: '1px solid #e7e1d6', boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)' };
-const badge = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', borderRadius: 999, border: '1px solid #ddd6c8', color: '#6b5b45', background: '#faf8f3', fontSize: 13, fontWeight: 700, marginBottom: 12 };
-const mainTitle = { margin: 0, fontSize: 30, color: '#101828' };
-const heroText = { margin: '12px 0 0 0', fontSize: 16, color: '#475467', lineHeight: 1.6 };
-const card = { background: '#fff', padding: 24, borderRadius: 18, border: '1px solid #e7e1d6', boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)' };
-const sectionTitle = { margin: '0 0 16px 0', fontSize: 22, color: '#101828' };
-const grid2 = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 };
-const field = { display: 'grid', gap: 8 };
-const label = { fontSize: 14, fontWeight: 700, color: '#344054' };
-const input = { width: '100%', padding: 12, borderRadius: 12, border: '1px solid #d0d5dd', boxSizing: 'border-box', background: '#fff' };
-const dropzone = { border: '2px dashed #d0d5dd', borderRadius: 18, padding: '26px 20px', background: '#fcfcfd', display: 'grid', gap: 10, justifyItems: 'center', textAlign: 'center', transition: 'all 0.15s ease' };
-const dropzoneActive = { border: '2px dashed #8c6b43', background: '#faf8f3' };
-const dropzoneTitle = { fontSize: 18, fontWeight: 700, color: '#101828' };
-const dropzoneText = { fontSize: 14, color: '#667085' };
-const fileList = { display: 'grid', gap: 10, marginTop: 16 };
-const fileCard = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, border: '1px solid #eceff3', background: '#fcfcfd' };
-const fileInfo = { minWidth: 0 };
-const fileName = { fontSize: 14, fontWeight: 700, color: '#101828', wordBreak: 'break-word' };
-const fileMeta = { marginTop: 4, fontSize: 12, color: '#667085' };
-const actionRow = { display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' };
-const saveButton = { padding: '12px 16px', borderRadius: 12, border: 'none', background: '#8c6b43', color: '#fff', fontWeight: 700, cursor: 'pointer' };
-const secondaryButton = { padding: '12px 16px', borderRadius: 12, border: '1px solid #d0d5dd', background: '#fff', color: '#101828', fontWeight: 700, cursor: 'pointer' };
-const removeButton = { padding: '10px 12px', borderRadius: 10, border: '1px solid #fecdca', background: '#fff', color: '#b42318', fontWeight: 700, cursor: 'pointer', flexShrink: 0 };
-const infoBox = { padding: '14px 16px', borderRadius: 14, background: '#fffaeb', border: '1px solid #fedf89', color: '#b54708', marginTop: 16 };
-const errorBox = { padding: '14px 16px', borderRadius: 14, background: '#fef3f2', border: '1px solid #fecdca', color: '#b42318' };
-const successBox = { padding: '14px 16px', borderRadius: 14, background: '#ecfdf3', border: '1px solid #abefc6', color: '#067647' };
-const groupList = { display: 'grid', gap: 16 };
-const groupCard = { background: '#fcfcfd', border: '1px solid #eceff3', borderRadius: 16, padding: 16 };
-const groupTitle = { fontSize: 18, fontWeight: 800, color: '#101828', marginBottom: 12 };
-const documentList = { display: 'grid', gap: 10 };
-const documentCard = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, background: '#fff', border: '1px solid #eceff3' };
-const documentName = { fontSize: 14, fontWeight: 700, color: '#101828' };
-const documentMeta = { marginTop: 4, fontSize: 12, color: '#667085' };
-const documentActions = { display: 'flex', gap: 8, flexWrap: 'wrap' };
-const openLink = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 12px', borderRadius: 10, background: '#8c6b43', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14 };
-const downloadLink = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '10px 12px', borderRadius: 10, background: '#fff', color: '#101828', border: '1px solid #d0d5dd', textDecoration: 'none', fontWeight: 700, fontSize: 14 };
+const wrap = {
+  padding: 30,
+  background: '#f7f5ef',
+  minHeight: '100vh'
+};
+
+const container = {
+  maxWidth: 1180,
+  margin: '0 auto',
+  display: 'grid',
+  gap: 20
+};
+
+const heroCard = {
+  background: '#fff',
+  padding: 28,
+  borderRadius: 20,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const badge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '8px 12px',
+  borderRadius: 999,
+  border: '1px solid #ddd6c8',
+  color: '#6b5b45',
+  background: '#faf8f3',
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 12
+};
+
+const mainTitle = {
+  margin: 0,
+  fontSize: 30,
+  color: '#101828'
+};
+
+const heroText = {
+  margin: '12px 0 0 0',
+  fontSize: 16,
+  color: '#475467',
+  lineHeight: 1.6
+};
+
+const card = {
+  background: '#fff',
+  padding: 24,
+  borderRadius: 18,
+  border: '1px solid #e7e1d6',
+  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
+};
+
+const sectionTitle = {
+  margin: '0 0 16px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const grid2 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 16,
+  marginBottom: 16
+};
+
+const field = {
+  display: 'grid',
+  gap: 8
+};
+
+const label = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#344054'
+};
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  boxSizing: 'border-box',
+  background: '#fff'
+};
+
+const dropzone = {
+  border: '2px dashed #d0d5dd',
+  borderRadius: 18,
+  padding: '26px 20px',
+  background: '#fcfcfd',
+  display: 'grid',
+  gap: 10,
+  justifyItems: 'center',
+  textAlign: 'center',
+  transition: 'all 0.15s ease'
+};
+
+const dropzoneActive = {
+  border: '2px dashed #8c6b43',
+  background: '#faf8f3'
+};
+
+const dropzoneTitle = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const dropzoneText = {
+  fontSize: 14,
+  color: '#667085'
+};
+
+const fileList = {
+  display: 'grid',
+  gap: 10,
+  marginTop: 16
+};
+
+const fileCard = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  padding: 14,
+  borderRadius: 14,
+  border: '1px solid #eceff3',
+  background: '#fcfcfd'
+};
+
+const fileInfo = {
+  minWidth: 0
+};
+
+const fileName = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#101828',
+  wordBreak: 'break-word'
+};
+
+const fileMeta = {
+  marginTop: 4,
+  fontSize: 12,
+  color: '#667085'
+};
+
+const actionRow = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 18,
+  flexWrap: 'wrap'
+};
+
+const saveButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: 'none',
+  background: '#8c6b43',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const secondaryButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
+};
+
+const removeButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #fecdca',
+  background: '#fff',
+  color: '#b42318',
+  fontWeight: 700,
+  cursor: 'pointer',
+  flexShrink: 0
+};
+
+const infoBox = {
+  padding: '14px 16px',
+  borderRadius: 14,
+  background: '#fffaeb',
+  border: '1px solid #fedf89',
+  color: '#b54708',
+  marginTop: 16
+};
+
+const errorBox = {
+  padding: '14px 16px',
+  borderRadius: 14,
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318'
+};
+
+const successBox = {
+  padding: '14px 16px',
+  borderRadius: 14,
+  background: '#ecfdf3',
+  border: '1px solid #abefc6',
+  color: '#067647'
+};
+
+const groupList = {
+  display: 'grid',
+  gap: 16
+};
+
+const groupCard = {
+  background: '#fcfcfd',
+  border: '1px solid #eceff3',
+  borderRadius: 16,
+  padding: 16
+};
+
+const groupTitle = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: '#101828',
+  marginBottom: 12
+};
+
+const documentList = {
+  display: 'grid',
+  gap: 10
+};
+
+const documentCard = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  padding: 14,
+  borderRadius: 14,
+  background: '#fff',
+  border: '1px solid #eceff3'
+};
+
+const documentName = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const documentMeta = {
+  marginTop: 4,
+  fontSize: 12,
+  color: '#667085'
+};
+
+const documentActions = {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap'
+};
+
+const openLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#8c6b43',
+  color: '#fff',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
+};
+
+const downloadLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#fff',
+  color: '#101828',
+  border: '1px solid #d0d5dd',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
+};
