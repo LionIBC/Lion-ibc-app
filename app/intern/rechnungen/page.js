@@ -9,6 +9,7 @@ function toNumber(value, fallback = 0) {
 
 function emptyLine() {
   return {
+    service_catalog_id: '',
     description: '',
     quantity: 1,
     unit_price: 0,
@@ -19,6 +20,7 @@ function emptyLine() {
 
 export default function NeueRechnungPage() {
   const [customers, setCustomers] = useState([]);
+  const [services, setServices] = useState([]);
   const [series, setSeries] = useState([]);
   const [customerId, setCustomerId] = useState('');
   const [seriesId, setSeriesId] = useState('');
@@ -36,6 +38,7 @@ export default function NeueRechnungPage() {
 
   useEffect(() => {
     loadCustomers();
+    loadServices();
     loadSeries();
   }, []);
 
@@ -45,6 +48,18 @@ export default function NeueRechnungPage() {
       const data = await res.json();
       if (res.ok) {
         setCustomers(data.data || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function loadServices() {
+    try {
+      const res = await fetch('/api/services?active_only=true');
+      const data = await res.json();
+      if (res.ok) {
+        setServices(data.data || []);
       }
     } catch (error) {
       console.error(error);
@@ -68,6 +83,30 @@ export default function NeueRechnungPage() {
   function updateLine(index, key, value) {
     setLines((prev) =>
       prev.map((line, i) => (i === index ? { ...line, [key]: value } : line))
+    );
+  }
+
+  function applyServiceToLine(index, serviceId) {
+    const service = services.find((item) => item.id === serviceId);
+
+    if (!service) {
+      updateLine(index, 'service_catalog_id', '');
+      return;
+    }
+
+    setLines((prev) =>
+      prev.map((line, i) =>
+        i === index
+          ? {
+              ...line,
+              service_catalog_id: service.id,
+              description: service.description || service.name || '',
+              unit_price: service.default_price || 0,
+              tax_rate: service.default_tax_rate || 21,
+              discount_percent: service.default_discount_percent || 0
+            }
+          : line
+      )
     );
   }
 
@@ -123,7 +162,17 @@ export default function NeueRechnungPage() {
       return;
     }
 
-    const validLines = calculatedLines.filter((line) => line.description.trim());
+    const validLines = calculatedLines
+      .filter((line) => line.description.trim())
+      .map((line) => ({
+        service_catalog_id: line.service_catalog_id || null,
+        description: line.description,
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+        discount_percent: line.discount_percent,
+        tax_rate: line.tax_rate
+      }));
+
     if (validLines.length === 0) {
       setStatusBox({ type: 'error', message: 'Bitte mindestens eine Position eintragen.' });
       return;
@@ -177,12 +226,11 @@ export default function NeueRechnungPage() {
           <div style={badge}>Intern</div>
           <h1 style={mainTitle}>Neue Rechnung</h1>
           <p style={heroText}>
-            Rechnung erfassen, Positionen berechnen und direkt als Entwurf speichern.
+            Rechnung erfassen, Leistungen übernehmen und direkt als Entwurf speichern.
           </p>
         </section>
 
         {statusBox?.type === 'error' && <div style={errorBox}>{statusBox.message}</div>}
-        {statusBox?.type === 'success' && <div style={successBox}>{statusBox.message}</div>}
 
         <section style={card}>
           <h2 style={sectionTitle}>Kopfbereich</h2>
@@ -267,6 +315,7 @@ export default function NeueRechnungPage() {
           </div>
 
           <div style={lineHeader}>
+            <div>Leistung</div>
             <div>Beschreibung</div>
             <div>Menge</div>
             <div>Preis</div>
@@ -279,6 +328,19 @@ export default function NeueRechnungPage() {
 
           {calculatedLines.map((line, index) => (
             <div key={index} style={lineRow}>
+              <select
+                value={line.service_catalog_id || ''}
+                onChange={(e) => applyServiceToLine(index, e.target.value)}
+                style={input}
+              >
+                <option value="">Leistung wählen</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </select>
+
               <input
                 value={line.description}
                 onChange={(e) => updateLine(index, 'description', e.target.value)}
@@ -357,7 +419,7 @@ const wrap = {
 };
 
 const container = {
-  maxWidth: 1280,
+  maxWidth: 1380,
   margin: '0 auto',
   display: 'grid',
   gap: 20
@@ -474,7 +536,7 @@ const textarea = {
 
 const lineHeader = {
   display: 'grid',
-  gridTemplateColumns: '3fr repeat(4, 1fr) 1fr 1fr 64px',
+  gridTemplateColumns: '1.6fr 2.4fr repeat(4, 1fr) 1fr 1fr 64px',
   gap: 10,
   marginBottom: 10,
   fontSize: 12,
@@ -484,7 +546,7 @@ const lineHeader = {
 
 const lineRow = {
   display: 'grid',
-  gridTemplateColumns: '3fr repeat(4, 1fr) 1fr 1fr 64px',
+  gridTemplateColumns: '1.6fr 2.4fr repeat(4, 1fr) 1fr 1fr 64px',
   gap: 10,
   alignItems: 'center',
   marginBottom: 10
@@ -553,10 +615,3 @@ const errorBox = {
   color: '#b42318'
 };
 
-const successBox = {
-  padding: '14px 16px',
-  borderRadius: 14,
-  background: '#ecfdf3',
-  border: '1px solid #abefc6',
-  color: '#067647'
-};
