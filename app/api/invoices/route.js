@@ -5,6 +5,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+export async function GET() {
+  try {
+    const { data, error } = await supabase
+      .from('invoice_documents')
+      .select('id, invoice_number, kundenname, total, status, due_date, issue_date')
+      .in('status', ['draft', 'approved', 'issued', 'final', 'part_paid', 'overdue'])
+      .order('issue_date', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return Response.json({
+      success: true,
+      data: data || []
+    });
+  } catch (err) {
+    return Response.json(
+      { success: false, message: err.message || 'Rechnungen konnten nicht geladen werden.' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -77,7 +99,6 @@ export async function POST(req) {
     }
 
     return Response.json({ success: true, data: invoice });
-
   } catch (err) {
     return Response.json(
       { success: false, message: err.message },
@@ -85,4 +106,5 @@ export async function POST(req) {
     );
   }
 }
+
 
