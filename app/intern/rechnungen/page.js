@@ -134,6 +134,20 @@ export default function RechnungenPage() {
     window.location.href = '/intern/rechnungen/new';
   }
 
+  // 🔥 NEU: Übersicht berechnen
+  const stats = useMemo(() => {
+    let offen = 0;
+    let bezahlt = 0;
+
+    invoices.forEach((inv) => {
+      const status = String(inv.status || '').toLowerCase();
+      if (status === 'paid') bezahlt += Number(inv.total || 0);
+      else offen += Number(inv.total || 0);
+    });
+
+    return { offen, bezahlt };
+  }, [invoices]);
+
   const filteredInvoices = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -170,30 +184,42 @@ export default function RechnungenPage() {
       <div style={container}>
         <section style={heroCard}>
           <div style={badge}>Intern</div>
+
           <div style={heroHeader}>
             <div>
               <h1 style={mainTitle}>Rechnungen</h1>
               <p style={heroText}>
-                Verwalte Rechnungen, Abschlagsrechnungen, Schlussrechnungen und Korrekturrechnungen zentral an einem Ort.
+                Übersicht über alle Rechnungen inkl. Status und Beträge.
               </p>
             </div>
 
-            <button type="button" onClick={openNewInvoice} style={saveButton}>
+            <button onClick={openNewInvoice} style={saveButton}>
               + Neue Rechnung
             </button>
+          </div>
+
+          {/* 🔥 NEU: Übersicht */}
+          <div style={statsRow}>
+            <div style={statCard}>
+              <div>Offen</div>
+              <strong>{euro(stats.offen)}</strong>
+            </div>
+
+            <div style={statCard}>
+              <div>Bezahlt</div>
+              <strong>{euro(stats.bezahlt)}</strong>
+            </div>
           </div>
         </section>
 
         <section style={card}>
           <div style={toolbar}>
-            <div style={searchWrap}>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Suche nach Nummer, Kunde, Typ oder Status"
-                style={input}
-              />
-            </div>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Suche..."
+              style={input}
+            />
 
             <select
               value={statusFilter}
@@ -211,20 +237,7 @@ export default function RechnungenPage() {
               <option value="cancelled">Storniert</option>
             </select>
 
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              style={select}
-            >
-              <option value="">Alle Typen</option>
-              <option value="standard">Rechnung</option>
-              <option value="advance">Abschlag</option>
-              <option value="final">Schlussrechnung</option>
-              <option value="rectificativa">Korrekturrechnung</option>
-              <option value="reminder">Mahnung</option>
-            </select>
-
-            <button type="button" onClick={loadInvoices} style={secondaryButton}>
+            <button onClick={loadInvoices} style={secondaryButton}>
               Aktualisieren
             </button>
           </div>
@@ -232,77 +245,21 @@ export default function RechnungenPage() {
 
         <section style={card}>
           {loading ? (
-            <div style={emptyState}>
-              <div style={emptyTitle}>Rechnungen werden geladen ...</div>
-              <div style={emptyText}>Bitte einen Moment warten.</div>
-            </div>
-          ) : filteredInvoices.length === 0 ? (
-            <div style={emptyState}>
-              <div style={emptyTitle}>Noch keine Rechnungen vorhanden</div>
-              <div style={emptyText}>
-                Lege die erste Rechnung an oder passe deine Filter an.
-              </div>
-
-              <button type="button" onClick={openNewInvoice} style={saveButton}>
-                Erste Rechnung anlegen
-              </button>
-            </div>
+            <div>Loading...</div>
           ) : (
             <div style={grid}>
               {filteredInvoices.map((invoice) => (
                 <button
                   key={invoice.id}
-                  type="button"
                   onClick={() => openInvoice(invoice.id)}
                   style={invoiceCard}
                 >
-                  <div style={invoiceCardTop}>
-                    <div>
-                      <div style={invoiceNumber}>{invoice.invoice_number || '-'}</div>
-                      <div style={customerName}>{invoice.kundenname || '-'}</div>
-                      <div style={customerMeta}>Kundennummer: {invoice.kundennummer || '-'}</div>
-                    </div>
+                  <strong>{invoice.invoice_number}</strong>
+                  <div>{invoice.kundenname}</div>
+                  <div>{euro(invoice.total)}</div>
 
-                    <div style={{ ...statusPill, ...statusStyle(invoice) }}>
-                      {statusLabel(invoice)}
-                    </div>
-                  </div>
-
-                  <div style={invoiceBody}>
-                    <div style={factRow}>
-                      <span style={factLabel}>Typ</span>
-                      <span style={factValue}>{typeLabel(invoice.invoice_type)}</span>
-                    </div>
-
-                    <div style={factRow}>
-                      <span style={factLabel}>Rechnungsdatum</span>
-                      <span style={factValue}>{formatDate(invoice.issue_date)}</span>
-                    </div>
-
-                    <div style={factRow}>
-                      <span style={factLabel}>Fällig</span>
-                      <span style={factValue}>{formatDate(invoice.due_date)}</span>
-                    </div>
-
-                    <div style={factRow}>
-                      <span style={factLabel}>Finalisiert</span>
-                      <span style={factValue}>{invoice.is_final ? 'Ja' : 'Nein'}</span>
-                    </div>
-
-                    <div style={factRow}>
-                      <span style={factLabel}>PDF</span>
-                      <span style={factValue}>{invoice.pdf_path ? 'Vorhanden' : 'Noch nicht erstellt'}</span>
-                    </div>
-
-                    <div style={factRow}>
-                      <span style={factLabel}>Gesamt</span>
-                      <span style={factValueStrong}>{euro(invoice.total)}</span>
-                    </div>
-                  </div>
-
-                  <div style={openRow}>
-                    <span style={openText}>Rechnung öffnen</span>
-                    <span style={arrow}>→</span>
+                  <div style={{ ...statusPill, ...statusStyle(invoice) }}>
+                    {statusLabel(invoice)}
                   </div>
                 </button>
               ))}
@@ -314,247 +271,53 @@ export default function RechnungenPage() {
   );
 }
 
-const wrap = {
-  padding: 30,
-  background: '#f7f5ef',
-  minHeight: '100vh'
-};
+const wrap = { padding: 30 };
+const container = { maxWidth: 1200, margin: '0 auto', display: 'grid', gap: 20 };
 
-const container = {
-  maxWidth: 1280,
-  margin: '0 auto',
-  display: 'grid',
-  gap: 20
-};
-
-const heroCard = {
-  background: '#fff',
-  padding: 28,
-  borderRadius: 20,
-  border: '1px solid #e7e1d6',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
-};
-
-const badge = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '8px 12px',
-  borderRadius: 999,
-  border: '1px solid #ddd6c8',
-  color: '#6b5b45',
-  background: '#faf8f3',
-  fontSize: 13,
-  fontWeight: 700,
-  marginBottom: 12
-};
-
-const heroHeader = {
+const statsRow = {
   display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: 16,
-  flexWrap: 'wrap'
+  gap: 20,
+  marginTop: 20
 };
 
-const mainTitle = {
-  margin: 0,
-  fontSize: 30,
-  color: '#101828'
+const statCard = {
+  padding: 15,
+  background: '#fafafa',
+  borderRadius: 10
 };
 
-const heroText = {
-  margin: '12px 0 0 0',
-  fontSize: 16,
-  color: '#475467',
-  lineHeight: 1.6,
-  maxWidth: 760
-};
+const heroCard = { padding: 20, background: '#fff', borderRadius: 12 };
+const badge = { marginBottom: 10 };
+const heroHeader = { display: 'flex', justifyContent: 'space-between' };
+const mainTitle = { margin: 0 };
+const heroText = { color: '#666' };
 
-const card = {
-  background: '#fff',
-  padding: 24,
-  borderRadius: 18,
-  border: '1px solid #e7e1d6',
-  boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
-};
+const card = { padding: 20, background: '#fff', borderRadius: 12 };
+const toolbar = { display: 'flex', gap: 10 };
 
-const toolbar = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  flexWrap: 'wrap'
-};
+const input = { padding: 10 };
+const select = { padding: 10 };
 
-const searchWrap = {
-  flex: 1,
-  minWidth: 280
-};
-
-const input = {
-  width: '100%',
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid #d0d5dd',
-  boxSizing: 'border-box',
-  background: '#fff',
-  fontSize: 14
-};
-
-const select = {
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid #d0d5dd',
-  background: '#fff',
-  fontSize: 14
-};
-
-const grid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-  gap: 16
-};
+const grid = { display: 'grid', gap: 10 };
 
 const invoiceCard = {
-  width: '100%',
-  textAlign: 'left',
-  background: '#fcfcfd',
-  border: '1px solid #eceff3',
-  borderRadius: 18,
-  padding: 18,
-  cursor: 'pointer'
+  padding: 15,
+  border: '1px solid #ddd',
+  borderRadius: 10
 };
 
-const invoiceCardTop = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  gap: 12,
-  marginBottom: 14
-};
-
-const invoiceNumber = {
-  fontSize: 18,
-  fontWeight: 800,
-  color: '#101828'
-};
-
-const customerName = {
-  marginTop: 6,
-  fontSize: 15,
-  fontWeight: 700,
-  color: '#344054'
-};
-
-const customerMeta = {
-  marginTop: 4,
-  fontSize: 12,
-  color: '#667085'
-};
-
-const statusPill = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '8px 10px',
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700,
-  whiteSpace: 'nowrap'
-};
-
-const invoiceBody = {
-  display: 'grid',
-  gap: 10
-};
-
-const factRow = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  alignItems: 'center',
-  borderTop: '1px solid #f2f4f7',
-  paddingTop: 10
-};
-
-const factLabel = {
-  fontSize: 13,
-  color: '#667085'
-};
-
-const factValue = {
-  fontSize: 14,
-  color: '#101828',
-  textAlign: 'right'
-};
-
-const factValueStrong = {
-  fontSize: 16,
-  color: '#101828',
-  textAlign: 'right',
-  fontWeight: 800
-};
-
-const openRow = {
-  marginTop: 16,
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  borderTop: '1px solid #f2f4f7',
-  paddingTop: 14
-};
-
-const openText = {
-  color: '#8c6b43',
-  fontWeight: 700
-};
-
-const arrow = {
-  color: '#8c6b43',
-  fontWeight: 700,
-  fontSize: 18
-};
-
-const emptyState = {
-  padding: 30,
-  borderRadius: 18,
-  background: '#faf8f3',
-  border: '1px dashed #d6d0c4',
-  display: 'grid',
-  gap: 10,
-  justifyItems: 'start'
-};
-
-const emptyTitle = {
-  fontSize: 20,
-  fontWeight: 800,
-  color: '#101828'
-};
-
-const emptyText = {
-  fontSize: 15,
-  color: '#475467',
-  maxWidth: 700,
-  lineHeight: 1.6
-};
+const statusPill = { padding: 5, borderRadius: 5 };
 
 const saveButton = {
-  padding: '12px 16px',
-  borderRadius: 12,
-  border: 'none',
   background: '#8c6b43',
   color: '#fff',
-  fontWeight: 700,
-  cursor: 'pointer'
+  padding: 10,
+  border: 'none',
+  borderRadius: 8
 };
 
 const secondaryButton = {
-  padding: '12px 16px',
-  borderRadius: 12,
-  border: '1px solid #d0d5dd',
-  background: '#fff',
-  color: '#101828',
-  fontWeight: 700,
-  cursor: 'pointer'
+  padding: 10,
+  border: '1px solid #ccc',
+  borderRadius: 8
 };
