@@ -126,7 +126,7 @@ async function findMatchingInvoice(transaction) {
   });
 
   if (byInvoiceNumber) {
-    return { invoice: byInvoiceNumber, match_status: 'matched_by_invoice_number' };
+    return { invoice: byInvoiceNumber, match_status: 'suggested_by_invoice_number' };
   }
 
   const byAmountAndCustomer = rows.find((invoice) => {
@@ -136,7 +136,7 @@ async function findMatchingInvoice(transaction) {
   });
 
   if (byAmountAndCustomer) {
-    return { invoice: byAmountAndCustomer, match_status: 'matched_by_amount_and_customer' };
+    return { invoice: byAmountAndCustomer, match_status: 'suggested_by_amount_and_customer' };
   }
 
   const byAmount = rows.find((invoice) => {
@@ -145,38 +145,10 @@ async function findMatchingInvoice(transaction) {
   });
 
   if (byAmount) {
-    return { invoice: byAmount, match_status: 'matched_by_amount' };
+    return { invoice: byAmount, match_status: 'suggested_by_amount' };
   }
 
   return { invoice: null, match_status: 'unmatched' };
-}
-
-async function applyInvoicePayment(invoice, amount) {
-  const paidAmount = Math.abs(toNumber(amount, 0));
-  const invoiceTotal = Math.abs(toNumber(invoice.total, 0));
-
-  const { data: payments } = await supabase
-    .from('invoice_payments')
-    .select('*')
-    .eq('invoice_id', invoice.id);
-
-  const alreadyPaid = (payments || []).reduce((sum, row) => sum + Math.abs(toNumber(row.amount, 0)), 0);
-  const newPaid = alreadyPaid + paidAmount;
-
-  let newStatus = 'part_paid';
-  if (newPaid >= invoiceTotal) {
-    newStatus = 'paid';
-  }
-
-  await supabase
-    .from('invoice_documents')
-    .update({
-      status: newStatus,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', invoice.id);
-
-  return newStatus;
 }
 
 async function upsertTransaction(bankAccountId, syncRunId, transaction) {
@@ -207,14 +179,17 @@ async function upsertTransaction(bankAccountId, syncRunId, transaction) {
     remittance_information: description,
     bank_reference: String(transaction.transaction_reference || transaction.reference || '').trim(),
     external_transaction_id: externalTransactionId || `${amount}-${description}-${bookingDate}`,
-    matched_invoice_id: match.invoice?.id || null,
+    matched_invoice_id: null,
     match_status: match.match_status,
-    imported_at: new Date().toISOString()
+    imported_at: new Date().toISOString(),
+    suggested_invoice_id: match.invoice?.id || null,
+    suggested_invoice_number: match.invoice?.invoice_number || null,
+    suggested_customer_name: match.invoice?.kundenname || null
   };
 
   const { data: existing } = await supabase
     .from('bank_transactions')
-    .select('id, matched_invoice_id')
+    .select('id')
     .eq('external_transaction_id', payload.external_transaction_id)
     .limit(1);
 
@@ -223,10 +198,14 @@ async function upsertTransaction(bankAccountId, syncRunId, transaction) {
   if (existing && existing.length > 0) {
     transactionId = existing[0].id;
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('bank_transactions')
       .update(payload)
       .eq('id', transactionId);
+
+    if (updateError) {
+      throw new Error(updateError.message || 'Banktransaktion konnte nicht aktualisiert werden.');
+    }
   } else {
     const { data: inserted, error: insertError } = await supabase
       .from('bank_transactions')
@@ -241,42 +220,10 @@ async function upsertTransaction(bankAccountId, syncRunId, transaction) {
     transactionId = inserted.id;
   }
 
-  if (match.invoice) {
-    await supabase
-      .from('invoice_payments')
-      .insert({
-        invoice_id: match.invoice.id,
-        payment_date: bookingDate,
-        amount: Math.abs(amount),
-        currency: transaction.currency || 'EUR',
-        payment_source: 'bank_sync',
-        reference: payload.bank_reference || payload.remittance_information,
-        bank_transaction_id: transactionId,
-        is_manual: false
-      });
-
-    const newStatus = await applyInvoicePayment(match.invoice, amount);
-
-    await supabase
-      .from('invoice_events')
-      .insert({
-        invoice_id: match.invoice.id,
-        event_type: 'payment_matched',
-        event_label: 'Zahlung automatisch erkannt',
-        actor: 'system',
-        actor_type: 'system',
-        payload: {
-          bank_transaction_id: transactionId,
-          amount: Math.abs(amount),
-          match_status: match.match_status,
-          new_status: newStatus
-        }
-      });
-  }
-
   return {
     transaction_id: transactionId,
-    matched_invoice_id: match.invoice?.id || null,
+    matched_invoice_id: null,
+    suggested_invoice_id: match.invoice?.id || null,
     match_status: match.match_status
   };
 }
@@ -309,6 +256,8 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  let syncRunId = null;
+
   try {
     const body = await req.json().catch(() => ({}));
     const runType = body.run_type || 'manual';
@@ -316,6 +265,7 @@ export async function POST(req) {
     const bankAccount = await getDefaultBankAccount();
     const bankConnection = await getDefaultBankConnection(bankAccount.id);
     const syncRun = await createSyncRun(bankConnection?.id || null, runType);
+    syncRunId = syncRun.id;
 
     const transactions = await fetchTrueLayerTransactions();
 
@@ -333,6 +283,10 @@ export async function POST(req) {
       data: results
     });
   } catch (error) {
+    if (syncRunId) {
+      await finishSyncRun(syncRunId, 'error', error.message || 'Bank-Sync fehlgeschlagen.');
+    }
+
     return Response.json(
       { success: false, message: error.message || 'Bank-Sync fehlgeschlagen.' },
       { status: 500 }
