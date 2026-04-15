@@ -63,9 +63,7 @@ export default function BankPage() {
       setLoadingConnections(true);
       const res = await fetch('/api/bank/connections');
       const data = await res.json();
-      if (res.ok) {
-        setConnections(data.data || []);
-      }
+      if (res.ok) setConnections(data.data || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -78,9 +76,7 @@ export default function BankPage() {
       setLoadingTransactions(true);
       const res = await fetch('/api/bank/sync');
       const data = await res.json();
-      if (res.ok) {
-        setTransactions(data.data || []);
-      }
+      if (res.ok) setTransactions(data.data || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -88,10 +84,11 @@ export default function BankPage() {
     }
   }
 
-  async function connectBank() {
+  async function connectBankReal() {
     try {
       setConnecting(true);
-      const res = await fetch('/api/bank/connections', {
+
+      const createRes = await fetch('/api/bank/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,23 +101,24 @@ export default function BankPage() {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.message || 'Bank konnte nicht angelegt werden.');
+      const createData = await createRes.json();
+
+      if (!createRes.ok) {
+        alert(createData.message || 'Bankverbindung konnte nicht angelegt werden.');
         return;
       }
 
-      if (data.data?.connect_url) {
-        window.open(data.data.connect_url, '_blank');
+      const res = await fetch('/api/bank/connect');
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        alert(data.message || 'TrueLayer Connect-Link konnte nicht erzeugt werden.');
+        return;
       }
 
-      alert('Bankverbindung wurde angelegt.');
-      setDisplayName('');
-      setIban('');
-      setAccountHolder('');
-      await loadConnections();
+      window.location.href = data.url;
     } catch (error) {
-      alert('Bank konnte nicht angelegt werden.');
+      alert('TrueLayer Verbindung konnte nicht gestartet werden.');
     } finally {
       setConnecting(false);
     }
@@ -265,8 +263,8 @@ export default function BankPage() {
           </div>
 
           <div style={actionRow}>
-            <button type="button" onClick={connectBank} style={saveButton} disabled={connecting}>
-              {connecting ? 'Verbindet...' : 'Bank anlegen und verbinden'}
+            <button type="button" onClick={connectBankReal} style={saveButton} disabled={connecting}>
+              {connecting ? 'Verbindet...' : 'TrueLayer Verbindung starten'}
             </button>
           </div>
         </section>
@@ -321,14 +319,6 @@ export default function BankPage() {
                   <div style={connectionMeta}>IBAN: {item.iban || '-'}</div>
                   <div style={connectionMeta}>Provider: {item.provider_name || '-'}</div>
                   <div style={connectionMeta}>Aktiv: {item.is_active ? 'Ja' : 'Nein'}</div>
-
-                  {item.connect_url ? (
-                    <div style={actionRowSmall}>
-                      <a href={item.connect_url} target="_blank" rel="noreferrer" style={linkButton}>
-                        Verbindung öffnen
-                      </a>
-                    </div>
-                  ) : null}
                 </div>
               ))}
             </div>
@@ -515,13 +505,6 @@ const actionRow = {
   flexWrap: 'wrap'
 };
 
-const actionRowSmall = {
-  display: 'flex',
-  gap: 10,
-  marginTop: 12,
-  flexWrap: 'wrap'
-};
-
 const saveButton = {
   padding: '12px 16px',
   borderRadius: 12,
@@ -540,19 +523,6 @@ const secondaryButton = {
   color: '#101828',
   fontWeight: 700,
   cursor: 'pointer'
-};
-
-const linkButton = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '10px 14px',
-  borderRadius: 10,
-  border: '1px solid #d0d5dd',
-  background: '#fff',
-  color: '#101828',
-  fontWeight: 700,
-  textDecoration: 'none'
 };
 
 const helperText = {
