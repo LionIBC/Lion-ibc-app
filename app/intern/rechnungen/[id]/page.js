@@ -10,6 +10,7 @@ export default function RechnungDetailPage() {
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
   const [generatingFacturae, setGeneratingFacturae] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     loadInvoice();
@@ -97,6 +98,33 @@ export default function RechnungDetailPage() {
     }
   }
 
+  async function sendInvoice() {
+    try {
+      setSending(true);
+
+      const res = await fetch('/api/emails/send-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_type: 'invoice',
+          document_id: id
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'E-Mail konnte nicht versendet werden.');
+        return;
+      }
+
+      alert('Rechnung wurde per E-Mail versendet.');
+      await loadInvoice();
+    } finally {
+      setSending(false);
+    }
+  }
+
   function downloadPdf() {
     window.open(`/api/invoices/pdf/${id}`, '_blank');
   }
@@ -150,6 +178,10 @@ export default function RechnungDetailPage() {
         <section style={card}>
           <button style={button} onClick={downloadPdf}>
             PDF herunterladen
+          </button>
+
+          <button style={button} onClick={sendInvoice} disabled={sending}>
+            {sending ? 'Versendet...' : 'Per E-Mail senden'}
           </button>
 
           <button style={button} onClick={generateFacturae} disabled={generatingFacturae}>
