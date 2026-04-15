@@ -1,4 +1,4 @@
-'use client';
+''use client';
 
 import { useEffect, useMemo, useState } from 'react';
 
@@ -35,6 +35,9 @@ function matchStyle(value) {
   if (s.includes('partial')) {
     return { background: '#eff8ff', border: '1px solid #b2ddff', color: '#175cd3' };
   }
+  if (s.includes('suggest')) {
+    return { background: '#fffaeb', border: '1px solid #fedf89', color: '#b54708' };
+  }
   return { background: '#fef3f2', border: '1px solid #fecdca', color: '#b42318' };
 }
 
@@ -50,8 +53,9 @@ function getAssignmentState(item) {
   if (!item) return 'offen';
 
   const status = String(item.match_status || '').toLowerCase();
-  if (status.includes('matched')) return 'zugeordnet';
+  if (status.includes('manual_matched') || status.includes('matched')) return 'zugeordnet';
   if (status.includes('partial')) return 'teilweise zugeordnet';
+  if (status.includes('suggest')) return 'vorgeschlagen';
   return 'nicht zugeordnet';
 }
 
@@ -62,7 +66,8 @@ function detectMatchCandidate(item) {
     item.counterparty_name,
     item.remittance_information,
     item.bank_reference,
-    item.matched_invoice_id
+    item.matched_invoice_id,
+    item.suggested_invoice_number
   ]
     .join(' ')
     .toLowerCase();
@@ -87,11 +92,13 @@ function parseCsvPreviewName(file) {
 export default function BankPage() {
   const [connections, setConnections] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [invoiceOptions, setInvoiceOptions] = useState([]);
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [assigningId, setAssigningId] = useState(null);
   const [query, setQuery] = useState('');
   const [assignmentFilter, setAssignmentFilter] = useState('');
   const [directionFilter, setDirectionFilter] = useState('');
@@ -104,9 +111,12 @@ export default function BankPage() {
   const [currency, setCurrency] = useState('EUR');
   const [csvFile, setCsvFile] = useState(null);
 
+  const [assignInvoiceId, setAssignInvoiceId] = useState({});
+
   useEffect(() => {
     loadConnections();
     loadTransactions();
+    loadInvoices();
   }, []);
 
   async function loadConnections() {
@@ -132,6 +142,16 @@ export default function BankPage() {
       console.error(error);
     } finally {
       setLoadingTransactions(false);
+    }
+  }
+
+  async function loadInvoices() {
+    try {
+      const res = await fetch('/api/invoices');
+      const data = await res.json();
+      if (res.ok) setInvoiceOptions(data.data || []);
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -192,6 +212,7 @@ export default function BankPage() {
 
       alert(`Importiert: ${data.imported_count || 0}`);
       await loadTransactions();
+      await loadInvoices();
     } catch (error) {
       alert('Bank-Sync fehlgeschlagen.');
     } finally {
@@ -231,11 +252,44 @@ export default function BankPage() {
     }
   }
 
+  async function assignInvoice(transactionId) {
+    const invoiceId = assignInvoiceId[transactionId];
+    if (!invoiceId) {
+      alert('Bitte zuerst eine Rechnung auswählen.');
+      return;
+    }
+
+    try {
+      setAssigningId(transactionId);
+      const res = await fetch('/api/bank/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction_id: transactionId, invoice_id: invoiceId })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'Rechnung konnte nicht zugewiesen werden.');
+        return;
+      }
+
+      await loadTransactions();
+      await loadInvoices();
+      alert('Rechnung erfolgreich zugewiesen.');
+    } catch (error) {
+      alert('Rechnung konnte nicht zugewiesen werden.');
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
   const stats = useMemo(() => {
     let income = 0;
     let expense = 0;
     let matched = 0;
     let unmatched = 0;
+    let suggested = 0;
 
     for (const item of transactions) {
       const amount = Number(item.amount || 0);
@@ -244,6 +298,7 @@ export default function BankPage() {
 
       const state = getAssignmentState(item);
       if (state === 'zugeordnet') matched += 1;
+      else if (state === 'vorgeschlagen') suggested += 1;
       else unmatched += 1;
     }
 
@@ -252,6 +307,7 @@ export default function BankPage() {
       expense,
       matched,
       unmatched,
+      suggested,
       total: transactions.length
     };
   }, [transactions]);
@@ -269,7 +325,9 @@ export default function BankPage() {
           row.match_status,
           row.matched_invoice_id,
           row.iban,
-          row.account_iban
+          row.account_iban,
+          row.suggested_invoice_number,
+          row.suggested_customer_name
         ]
           .join(' ')
           .toLowerCase()
@@ -281,6 +339,7 @@ export default function BankPage() {
         !assignmentFilter ||
         (assignmentFilter === 'zugeordnet' && assignmentState === 'zugeordnet') ||
         (assignmentFilter === 'teilweise' && assignmentState === 'teilweise zugeordnet') ||
+        (assignmentFilter === 'vorgeschlagen' && assignmentState === 'vorgeschlagen') ||
         (assignmentFilter === 'offen' &&
           (assignmentState === 'nicht zugeordnet' || assignmentState === 'offen'));
 
@@ -333,6 +392,11 @@ export default function BankPage() {
             <div style={statCard}>
               <div style={statLabel}>Zugeordnet</div>
               <div style={statValue}>{stats.matched}</div>
+            </div>
+
+            <div style={statCard}>
+              <div style={statLabel}>Vorgeschlagen</div>
+              <div style={statValue}>{stats.suggested}</div>
             </div>
 
             <div style={statCard}>
@@ -476,6 +540,7 @@ export default function BankPage() {
                 <option value="">Alle Zuordnungen</option>
                 <option value="zugeordnet">Zugeordnet</option>
                 <option value="teilweise">Teilweise zugeordnet</option>
+                <option value="vorgeschlagen">Vorgeschlagen</option>
                 <option value="offen">Nicht zugeordnet</option>
               </select>
 
@@ -501,6 +566,8 @@ export default function BankPage() {
                 const assignmentState = getAssignmentState(item);
                 const amount = Number(item.amount || 0);
                 const hasCandidate = detectMatchCandidate(item);
+                const suggestedInvoiceId = item.suggested_invoice_id || '';
+                const selectValue = assignInvoiceId[item.id] || suggestedInvoiceId || '';
 
                 return (
                   <div key={item.id} style={transactionCard}>
@@ -534,8 +601,15 @@ export default function BankPage() {
                       </div>
 
                       <div style={metaRow}>
-                        <span style={metaLabel}>Rechnung</span>
-                        <span style={metaValue}>{item.matched_invoice_id || '-'}</span>
+                        <span style={metaLabel}>Vorgeschlagene Rechnung</span>
+                        <span style={metaValue}>
+                          {item.suggested_invoice_number || item.matched_invoice_id || '-'}
+                        </span>
+                      </div>
+
+                      <div style={metaRow}>
+                        <span style={metaLabel}>Kunde</span>
+                        <span style={metaValue}>{item.suggested_customer_name || '-'}</span>
                       </div>
 
                       <div style={metaRow}>
@@ -546,6 +620,39 @@ export default function BankPage() {
                       <div style={metaRow}>
                         <span style={metaLabel}>Matching Hinweis</span>
                         <span style={metaValue}>{hasCandidate ? 'Match möglich' : 'Kein klarer Treffer'}</span>
+                      </div>
+                    </div>
+
+                    <div style={assignBox}>
+                      <div style={assignTitle}>Rechnung manuell zuweisen</div>
+
+                      <div style={assignControls}>
+                        <select
+                          value={selectValue}
+                          onChange={(e) =>
+                            setAssignInvoiceId((prev) => ({
+                              ...prev,
+                              [item.id]: e.target.value
+                            }))
+                          }
+                          style={assignSelect}
+                        >
+                          <option value="">Bitte Rechnung wählen</option>
+                          {invoiceOptions.map((invoice) => (
+                            <option key={invoice.id} value={invoice.id}>
+                              {invoice.invoice_number || '-'} · {invoice.kundenname || '-'} · {euro(invoice.total)}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => assignInvoice(item.id)}
+                          style={saveButton}
+                          disabled={assigningId === item.id}
+                        >
+                          {assigningId === item.id ? 'Weist zu...' : 'Rechnung zuweisen'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -873,6 +980,36 @@ const metaValue = {
   color: '#101828',
   textAlign: 'right',
   wordBreak: 'break-word'
+};
+
+const assignBox = {
+  marginTop: 16,
+  borderTop: '1px solid #f2f4f7',
+  paddingTop: 16,
+  display: 'grid',
+  gap: 10
+};
+
+const assignTitle = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#101828'
+};
+
+const assignControls = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap'
+};
+
+const assignSelect = {
+  flex: 1,
+  minWidth: 240,
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  fontSize: 14
 };
 
 const pill = {
