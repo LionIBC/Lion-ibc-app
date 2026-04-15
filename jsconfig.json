@@ -3,3 +3,11 @@
     "baseUrl": "."
   }
 }
+{
+  "crons": [
+    {
+      "path": "/api/system/run-jobs",
+      "schedule": "0 7,9,12,15,18,20 * * *"
+    }
+  ]
+}
