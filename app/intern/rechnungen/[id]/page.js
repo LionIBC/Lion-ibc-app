@@ -9,6 +9,7 @@ export default function RechnungDetailPage() {
   const [invoiceData, setInvoiceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [finalizing, setFinalizing] = useState(false);
+  const [generatingFacturae, setGeneratingFacturae] = useState(false);
 
   useEffect(() => {
     loadInvoice();
@@ -67,6 +68,35 @@ export default function RechnungDetailPage() {
     }
   }
 
+  async function generateFacturae() {
+    try {
+      setGeneratingFacturae(true);
+      const res = await fetch(`/api/invoices/${id}/facturae`, {
+        method: 'POST'
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.message || 'Facturae konnte nicht erzeugt werden.');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `facturae_${id}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      await loadInvoice();
+    } finally {
+      setGeneratingFacturae(false);
+    }
+  }
+
   function downloadPdf() {
     window.open(`/api/invoices/pdf/${id}`, '_blank');
   }
@@ -85,6 +115,7 @@ export default function RechnungDetailPage() {
           <p><strong>Kunde:</strong> {invoice.kundenname} ({invoice.kundennummer})</p>
           <p><strong>Status:</strong> {invoice.status}</p>
           <p><strong>Final:</strong> {invoice.is_final ? 'Ja' : 'Nein'}</p>
+          <p><strong>Facturae:</strong> {invoice.facturae_status || 'draft'}</p>
           {invoice.cancelled && <p style={{ color: '#b42318', fontWeight: 700 }}>STORNIERT</p>}
         </section>
 
@@ -113,11 +144,16 @@ export default function RechnungDetailPage() {
           <p>Steuer: {invoice.tax_total} €</p>
           <p><strong>Gesamt: {invoice.total} €</strong></p>
           {invoice.pdf_hash ? <p><strong>PDF-Hash:</strong> {invoice.pdf_hash}</p> : null}
+          {invoice.facturae_hash ? <p><strong>Facturae-Hash:</strong> {invoice.facturae_hash}</p> : null}
         </section>
 
         <section style={card}>
           <button style={button} onClick={downloadPdf}>
             PDF herunterladen
+          </button>
+
+          <button style={button} onClick={generateFacturae} disabled={generatingFacturae}>
+            {generatingFacturae ? 'Erzeugt...' : 'Facturae XML erzeugen'}
           </button>
 
           {!invoice.is_final && !invoice.cancelled ? (
@@ -169,4 +205,3 @@ const dangerButton = {
   color: '#fff',
   cursor: 'pointer'
 };
-
