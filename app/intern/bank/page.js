@@ -2,12 +2,46 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+function euro(value) {
+  const n = Number(value || 0);
+  return `${n.toFixed(2)} €`;
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleDateString('de-DE');
+  } catch {
+    return value;
+  }
+}
+
+function statusStyle(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'connected' || s === 'active' || s === 'manual') {
+    return { background: '#ecfdf3', border: '1px solid #abefc6', color: '#067647' };
+  }
+  if (s === 'pending') {
+    return { background: '#fffaeb', border: '1px solid #fedf89', color: '#b54708' };
+  }
+  return { background: '#f2f4f7', border: '1px solid #d0d5dd', color: '#344054' };
+}
+
+function matchStyle(value) {
+  const s = String(value || '').toLowerCase();
+  if (s.includes('matched')) {
+    return { background: '#ecfdf3', border: '1px solid #abefc6', color: '#067647' };
+  }
+  return { background: '#fef3f2', border: '1px solid #fecdca', color: '#b42318' };
+}
+
 export default function BankPage() {
-  const [transactions, setTransactions] = useState([]);
   const [connections, setConnections] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [loadingConnections, setLoadingConnections] = useState(true);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -20,68 +54,43 @@ export default function BankPage() {
   const [csvFile, setCsvFile] = useState(null);
 
   useEffect(() => {
-    loadTransactions();
     loadConnections();
+    loadTransactions();
   }, []);
+
+  async function loadConnections() {
+    try {
+      setLoadingConnections(true);
+      const res = await fetch('/api/bank/connections');
+      const data = await res.json();
+      if (res.ok) {
+        setConnections(data.data || []);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingConnections(false);
+    }
+  }
 
   async function loadTransactions() {
     try {
-      setLoading(true);
+      setLoadingTransactions(true);
       const res = await fetch('/api/bank/sync');
       const data = await res.json();
-
       if (res.ok) {
         setTransactions(data.data || []);
       }
     } catch (error) {
       console.error(error);
     } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadConnections() {
-    try {
-      const res = await fetch('/api/bank/connections');
-      const data = await res.json();
-
-      if (res.ok) {
-        setConnections(data.data || []);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function syncNow() {
-    try {
-      setSyncing(true);
-      const res = await fetch('/api/bank/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_type: 'manual' })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message || 'Bank-Sync fehlgeschlagen.');
-        return;
-      }
-
-      alert(`Importiert: ${data.imported_count || 0}`);
-      await loadTransactions();
-    } catch (error) {
-      alert('Bank-Sync fehlgeschlagen.');
-    } finally {
-      setSyncing(false);
+      setLoadingTransactions(false);
     }
   }
 
   async function connectBank() {
     try {
       setConnecting(true);
-
       const res = await fetch('/api/bank/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,7 +105,6 @@ export default function BankPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         alert(data.message || 'Bank konnte nicht angelegt werden.');
         return;
@@ -111,8 +119,34 @@ export default function BankPage() {
       setIban('');
       setAccountHolder('');
       await loadConnections();
+    } catch (error) {
+      alert('Bank konnte nicht angelegt werden.');
     } finally {
       setConnecting(false);
+    }
+  }
+
+  async function syncNow() {
+    try {
+      setSyncing(true);
+      const res = await fetch('/api/bank/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_type: 'manual' })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || 'Bank-Sync fehlgeschlagen.');
+        return;
+      }
+
+      alert(`Importiert: ${data.imported_count || 0}`);
+      await loadTransactions();
+    } catch (error) {
+      alert('Bank-Sync fehlgeschlagen.');
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -133,7 +167,6 @@ export default function BankPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         alert(data.message || 'CSV konnte nicht importiert werden.');
         return;
@@ -142,12 +175,14 @@ export default function BankPage() {
       alert(`CSV importiert: ${data.imported_count || 0}`);
       setCsvFile(null);
       await loadTransactions();
+    } catch (error) {
+      alert('CSV konnte nicht importiert werden.');
     } finally {
       setImporting(false);
     }
   }
 
-  const filtered = useMemo(() => {
+  const filteredTransactions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return transactions;
 
@@ -156,7 +191,8 @@ export default function BankPage() {
         row.counterparty_name,
         row.remittance_information,
         row.bank_reference,
-        row.match_status
+        row.match_status,
+        row.matched_invoice_id
       ].join(' ').toLowerCase().includes(q)
     );
   }, [transactions, query]);
@@ -168,15 +204,17 @@ export default function BankPage() {
           <div style={badge}>Intern</div>
           <div style={heroHeader}>
             <div>
-              <h1 style={mainTitle}>Bank</h1>
+              <h1 style={mainTitle}>Bank UI 2.0</h1>
               <p style={heroText}>
-                Banken verbinden, CSV importieren und Transaktionen automatisch mit Rechnungen abgleichen.
+                Banken verbinden, CSV importieren, Transaktionen prüfen und den Abgleich mit Rechnungen steuern.
               </p>
             </div>
 
-            <button type="button" onClick={syncNow} style={saveButton} disabled={syncing}>
-              {syncing ? 'Synchronisiert...' : 'Bank jetzt synchronisieren'}
-            </button>
+            <div style={actionRow}>
+              <button type="button" onClick={syncNow} style={saveButton} disabled={syncing}>
+                {syncing ? 'Synchronisiert...' : 'Jetzt synchronisieren'}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -236,7 +274,7 @@ export default function BankPage() {
         <section style={card}>
           <h2 style={sectionTitle}>CSV Import</h2>
           <p style={helperText}>
-            Fallback für Banken ohne direkte Anbindung. Erwartet Spalten wie Datum, Betrag, Gegenpartei, Verwendungszweck und Referenz.
+            Fallback für Banken ohne direkte Anbindung. CSV hochladen und Umsätze direkt einspielen.
           </p>
 
           <div style={grid2}>
@@ -261,17 +299,36 @@ export default function BankPage() {
         <section style={card}>
           <h2 style={sectionTitle}>Verbundene Banken</h2>
 
-          {connections.length === 0 ? (
+          {loadingConnections ? (
+            <div style={emptyBox}>Bankverbindungen werden geladen ...</div>
+          ) : connections.length === 0 ? (
             <div style={emptyBox}>Noch keine Bankverbindung vorhanden.</div>
           ) : (
             <div style={connectionGrid}>
               {connections.map((item) => (
                 <div key={item.id} style={connectionCard}>
-                  <div style={connectionTitle}>{item.bank_name || '-'}</div>
-                  <div style={connectionMeta}>{item.display_name || '-'}</div>
-                  <div style={connectionMeta}>{item.iban || '-'}</div>
+                  <div style={connectionTop}>
+                    <div>
+                      <div style={connectionTitle}>{item.bank_name || '-'}</div>
+                      <div style={connectionMeta}>{item.display_name || '-'}</div>
+                    </div>
+
+                    <div style={{ ...pill, ...statusStyle(item.status) }}>
+                      {item.status || '-'}
+                    </div>
+                  </div>
+
+                  <div style={connectionMeta}>IBAN: {item.iban || '-'}</div>
                   <div style={connectionMeta}>Provider: {item.provider_name || '-'}</div>
-                  <div style={connectionMeta}>Status: {item.status || '-'}</div>
+                  <div style={connectionMeta}>Aktiv: {item.is_active ? 'Ja' : 'Nein'}</div>
+
+                  {item.connect_url ? (
+                    <div style={actionRowSmall}>
+                      <a href={item.connect_url} target="_blank" rel="noreferrer" style={linkButton}>
+                        Verbindung öffnen
+                      </a>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -279,30 +336,40 @@ export default function BankPage() {
         </section>
 
         <section style={card}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Suche nach Gegenpartei, Verwendungszweck oder Match-Status"
-            style={input}
-          />
-        </section>
+          <div style={toolbar}>
+            <h2 style={sectionTitleNoMargin}>Transaktionen</h2>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Suche nach Gegenpartei, Verwendungszweck, Match oder Rechnung"
+              style={searchInput}
+            />
+          </div>
 
-        <section style={card}>
-          <h2 style={sectionTitle}>Transaktionen</h2>
-
-          {loading ? (
+          {loadingTransactions ? (
             <div style={emptyBox}>Banktransaktionen werden geladen ...</div>
-          ) : filtered.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div style={emptyBox}>Noch keine Banktransaktionen vorhanden.</div>
           ) : (
             <div style={transactionGrid}>
-              {filtered.map((item) => (
+              {filteredTransactions.map((item) => (
                 <div key={item.id} style={transactionCard}>
-                  <div style={transactionTitle}>{item.counterparty_name || 'Unbekannt'}</div>
-                  <div style={transactionMeta}>{item.booking_date || '-'} · {item.amount || 0} €</div>
+                  <div style={transactionTop}>
+                    <div>
+                      <div style={transactionTitle}>{item.counterparty_name || 'Unbekannt'}</div>
+                      <div style={transactionMeta}>
+                        {formatDate(item.booking_date)} · {euro(item.amount)}
+                      </div>
+                    </div>
+
+                    <div style={{ ...pill, ...matchStyle(item.match_status) }}>
+                      {item.match_status || 'unmatched'}
+                    </div>
+                  </div>
+
                   <div style={transactionMeta}>Verwendungszweck: {item.remittance_information || '-'}</div>
                   <div style={transactionMeta}>Referenz: {item.bank_reference || '-'}</div>
-                  <div style={transactionMeta}>Match: {item.match_status || '-'}</div>
+                  <div style={transactionMeta}>Rechnung: {item.matched_invoice_id || '-'}</div>
                 </div>
               ))}
             </div>
@@ -320,7 +387,7 @@ const wrap = {
 };
 
 const container = {
-  maxWidth: 1280,
+  maxWidth: 1320,
   margin: '0 auto',
   display: 'grid',
   gap: 20
@@ -358,7 +425,7 @@ const heroHeader = {
 
 const mainTitle = {
   margin: 0,
-  fontSize: 30,
+  fontSize: 32,
   color: '#101828'
 };
 
@@ -366,7 +433,8 @@ const heroText = {
   margin: '12px 0 0 0',
   fontSize: 16,
   color: '#475467',
-  lineHeight: 1.6
+  lineHeight: 1.6,
+  maxWidth: 820
 };
 
 const card = {
@@ -379,6 +447,12 @@ const card = {
 
 const sectionTitle = {
   margin: '0 0 16px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const sectionTitleNoMargin = {
+  margin: 0,
   fontSize: 22,
   color: '#101828'
 };
@@ -416,10 +490,35 @@ const input = {
   fontSize: 14
 };
 
+const searchInput = {
+  minWidth: 320,
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  fontSize: 14
+};
+
+const toolbar = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 16,
+  flexWrap: 'wrap',
+  marginBottom: 16
+};
+
 const actionRow = {
   display: 'flex',
   gap: 10,
   marginTop: 16,
+  flexWrap: 'wrap'
+};
+
+const actionRowSmall = {
+  display: 'flex',
+  gap: 10,
+  marginTop: 12,
   flexWrap: 'wrap'
 };
 
@@ -443,6 +542,19 @@ const secondaryButton = {
   cursor: 'pointer'
 };
 
+const linkButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 14px',
+  borderRadius: 10,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  textDecoration: 'none'
+};
+
 const helperText = {
   marginTop: 0,
   color: '#475467'
@@ -458,7 +570,7 @@ const emptyBox = {
 
 const connectionGrid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 16
 };
 
@@ -469,8 +581,16 @@ const connectionCard = {
   padding: 18
 };
 
+const connectionTop = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 10,
+  alignItems: 'flex-start',
+  marginBottom: 12
+};
+
 const connectionTitle = {
-  fontSize: 16,
+  fontSize: 18,
   fontWeight: 800,
   color: '#101828'
 };
@@ -494,6 +614,14 @@ const transactionCard = {
   padding: 18
 };
 
+const transactionTop = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 10,
+  alignItems: 'flex-start',
+  marginBottom: 12
+};
+
 const transactionTitle = {
   fontSize: 16,
   fontWeight: 800,
@@ -503,5 +631,17 @@ const transactionTitle = {
 const transactionMeta = {
   marginTop: 6,
   fontSize: 13,
-  color: '#667085'
+  color: '#667085',
+  lineHeight: 1.5
+};
+
+const pill = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '8px 10px',
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 700,
+  whiteSpace: 'nowrap'
 };
