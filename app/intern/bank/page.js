@@ -2,59 +2,26 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-function euro(value) {
-  const n = Number(value || 0);
-  return `${n.toFixed(2)} €`;
-}
-
-function formatDate(value) {
-  if (!value) return '-';
-  try {
-    return new Date(value).toLocaleDateString('de-DE');
-  } catch {
-    return value;
-  }
-}
-
-function matchLabel(value) {
-  switch (String(value || '').toLowerCase()) {
-    case 'matched_by_invoice_number':
-      return 'Per Rechnungsnummer';
-    case 'matched_by_amount_and_customer':
-      return 'Per Betrag + Kunde';
-    case 'matched_by_amount':
-      return 'Per Betrag';
-    default:
-      return 'Nicht zugeordnet';
-  }
-}
-
-function matchStyle(value) {
-  const v = String(value || '').toLowerCase();
-
-  if (v === 'matched_by_invoice_number' || v === 'matched_by_amount_and_customer' || v === 'matched_by_amount') {
-    return {
-      background: '#ecfdf3',
-      border: '1px solid #abefc6',
-      color: '#067647'
-    };
-  }
-
-  return {
-    background: '#fef3f2',
-    border: '1px solid #fecdca',
-    color: '#b42318'
-  };
-}
-
 export default function BankPage() {
   const [transactions, setTransactions] = useState([]);
+  const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [query, setQuery] = useState('');
+
+  const [bankName, setBankName] = useState('CaixaBank');
+  const [providerName, setProviderName] = useState('truelayer');
+  const [displayName, setDisplayName] = useState('');
+  const [iban, setIban] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
+  const [currency, setCurrency] = useState('EUR');
+  const [csvFile, setCsvFile] = useState(null);
 
   useEffect(() => {
     loadTransactions();
+    loadConnections();
   }, []);
 
   async function loadTransactions() {
@@ -70,6 +37,19 @@ export default function BankPage() {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadConnections() {
+    try {
+      const res = await fetch('/api/bank/connections');
+      const data = await res.json();
+
+      if (res.ok) {
+        setConnections(data.data || []);
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -98,6 +78,75 @@ export default function BankPage() {
     }
   }
 
+  async function connectBank() {
+    try {
+      setConnecting(true);
+
+      const res = await fetch('/api/bank/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bank_name: bankName,
+          provider_name: providerName,
+          display_name: displayName,
+          iban,
+          account_holder: accountHolder,
+          currency
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'Bank konnte nicht angelegt werden.');
+        return;
+      }
+
+      if (data.data?.connect_url) {
+        window.open(data.data.connect_url, '_blank');
+      }
+
+      alert('Bankverbindung wurde angelegt.');
+      setDisplayName('');
+      setIban('');
+      setAccountHolder('');
+      await loadConnections();
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function importCsv() {
+    if (!csvFile) {
+      alert('Bitte zuerst eine CSV-Datei auswählen.');
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const formData = new FormData();
+      formData.append('file', csvFile);
+
+      const res = await fetch('/api/bank/import-csv', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'CSV konnte nicht importiert werden.');
+        return;
+      }
+
+      alert(`CSV importiert: ${data.imported_count || 0}`);
+      setCsvFile(null);
+      await loadTransactions();
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return transactions;
@@ -108,10 +157,7 @@ export default function BankPage() {
         row.remittance_information,
         row.bank_reference,
         row.match_status
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q)
+      ].join(' ').toLowerCase().includes(q)
     );
   }, [transactions, query]);
 
@@ -122,9 +168,9 @@ export default function BankPage() {
           <div style={badge}>Intern</div>
           <div style={heroHeader}>
             <div>
-              <h1 style={mainTitle}>Bankabgleich</h1>
+              <h1 style={mainTitle}>Bank</h1>
               <p style={heroText}>
-                Kontobewegungen abrufen, automatisch Rechnungen zuordnen und Zahlungsstatus aktualisieren.
+                Banken verbinden, CSV importieren und Transaktionen automatisch mit Rechnungen abgleichen.
               </p>
             </div>
 
@@ -132,6 +178,104 @@ export default function BankPage() {
               {syncing ? 'Synchronisiert...' : 'Bank jetzt synchronisieren'}
             </button>
           </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Neue Bank verbinden</h2>
+
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>Bank</label>
+              <select value={bankName} onChange={(e) => setBankName(e.target.value)} style={input}>
+                <option value="CaixaBank">CaixaBank</option>
+                <option value="Bankinter">Bankinter</option>
+                <option value="Santander">Santander</option>
+                <option value="Sonstige">Sonstige</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Provider</label>
+              <select value={providerName} onChange={(e) => setProviderName(e.target.value)} style={input}>
+                <option value="truelayer">TrueLayer</option>
+                <option value="yapily">Yapily</option>
+                <option value="manual">Manuell</option>
+              </select>
+            </div>
+
+            <div style={field}>
+              <label style={label}>Anzeigename</label>
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={input} placeholder="z. B. Hauptkonto" />
+            </div>
+          </div>
+
+          <div style={grid3}>
+            <div style={field}>
+              <label style={label}>IBAN</label>
+              <input value={iban} onChange={(e) => setIban(e.target.value)} style={input} placeholder="ES..." />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Kontoinhaber</label>
+              <input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} style={input} />
+            </div>
+
+            <div style={field}>
+              <label style={label}>Währung</label>
+              <input value={currency} onChange={(e) => setCurrency(e.target.value)} style={input} />
+            </div>
+          </div>
+
+          <div style={actionRow}>
+            <button type="button" onClick={connectBank} style={saveButton} disabled={connecting}>
+              {connecting ? 'Verbindet...' : 'Bank anlegen und verbinden'}
+            </button>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>CSV Import</h2>
+          <p style={helperText}>
+            Fallback für Banken ohne direkte Anbindung. Erwartet Spalten wie Datum, Betrag, Gegenpartei, Verwendungszweck und Referenz.
+          </p>
+
+          <div style={grid2}>
+            <div style={field}>
+              <label style={label}>CSV Datei</label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                style={input}
+              />
+            </div>
+          </div>
+
+          <div style={actionRow}>
+            <button type="button" onClick={importCsv} style={secondaryButton} disabled={importing}>
+              {importing ? 'Importiert...' : 'CSV importieren'}
+            </button>
+          </div>
+        </section>
+
+        <section style={card}>
+          <h2 style={sectionTitle}>Verbundene Banken</h2>
+
+          {connections.length === 0 ? (
+            <div style={emptyBox}>Noch keine Bankverbindung vorhanden.</div>
+          ) : (
+            <div style={connectionGrid}>
+              {connections.map((item) => (
+                <div key={item.id} style={connectionCard}>
+                  <div style={connectionTitle}>{item.bank_name || '-'}</div>
+                  <div style={connectionMeta}>{item.display_name || '-'}</div>
+                  <div style={connectionMeta}>{item.iban || '-'}</div>
+                  <div style={connectionMeta}>Provider: {item.provider_name || '-'}</div>
+                  <div style={connectionMeta}>Status: {item.status || '-'}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section style={card}>
@@ -144,37 +288,21 @@ export default function BankPage() {
         </section>
 
         <section style={card}>
+          <h2 style={sectionTitle}>Transaktionen</h2>
+
           {loading ? (
-            <div style={emptyState}>
-              <div style={emptyTitle}>Banktransaktionen werden geladen ...</div>
-            </div>
+            <div style={emptyBox}>Banktransaktionen werden geladen ...</div>
           ) : filtered.length === 0 ? (
-            <div style={emptyState}>
-              <div style={emptyTitle}>Noch keine Banktransaktionen vorhanden</div>
-              <div style={emptyText}>
-                Starte zuerst einen manuellen Sync.
-              </div>
-            </div>
+            <div style={emptyBox}>Noch keine Banktransaktionen vorhanden.</div>
           ) : (
-            <div style={grid}>
+            <div style={transactionGrid}>
               {filtered.map((item) => (
-                <div key={item.id} style={itemCard}>
-                  <div style={topRow}>
-                    <div>
-                      <div style={title}>{item.counterparty_name || 'Unbekannt'}</div>
-                      <div style={meta}>{formatDate(item.booking_date)} · {euro(item.amount)}</div>
-                    </div>
-
-                    <div style={{ ...pill, ...matchStyle(item.match_status) }}>
-                      {matchLabel(item.match_status)}
-                    </div>
-                  </div>
-
-                  <div style={facts}>
-                    <div style={fact}><span>Verwendungszweck</span><strong>{item.remittance_information || '-'}</strong></div>
-                    <div style={fact}><span>Referenz</span><strong>{item.bank_reference || '-'}</strong></div>
-                    <div style={fact}><span>Rechnung</span><strong>{item.matched_invoice_id || '-'}</strong></div>
-                  </div>
+                <div key={item.id} style={transactionCard}>
+                  <div style={transactionTitle}>{item.counterparty_name || 'Unbekannt'}</div>
+                  <div style={transactionMeta}>{item.booking_date || '-'} · {item.amount || 0} €</div>
+                  <div style={transactionMeta}>Verwendungszweck: {item.remittance_information || '-'}</div>
+                  <div style={transactionMeta}>Referenz: {item.bank_reference || '-'}</div>
+                  <div style={transactionMeta}>Match: {item.match_status || '-'}</div>
                 </div>
               ))}
             </div>
@@ -249,6 +377,35 @@ const card = {
   boxShadow: '0 10px 24px rgba(16, 24, 40, 0.04)'
 };
 
+const sectionTitle = {
+  margin: '0 0 16px 0',
+  fontSize: 22,
+  color: '#101828'
+};
+
+const grid2 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 16
+};
+
+const grid3 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gap: 16
+};
+
+const field = {
+  display: 'grid',
+  gap: 8
+};
+
+const label = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: '#344054'
+};
+
 const input = {
   width: '100%',
   padding: 12,
@@ -259,58 +416,11 @@ const input = {
   fontSize: 14
 };
 
-const grid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-  gap: 16
-};
-
-const itemCard = {
-  background: '#fcfcfd',
-  border: '1px solid #eceff3',
-  borderRadius: 18,
-  padding: 18
-};
-
-const topRow = {
+const actionRow = {
   display: 'flex',
-  justifyContent: 'space-between',
   gap: 10,
-  marginBottom: 14
-};
-
-const title = {
-  fontSize: 16,
-  fontWeight: 800,
-  color: '#101828'
-};
-
-const meta = {
-  marginTop: 4,
-  fontSize: 12,
-  color: '#667085'
-};
-
-const facts = {
-  display: 'grid',
-  gap: 10
-};
-
-const fact = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  borderTop: '1px solid #f2f4f7',
-  paddingTop: 10,
-  fontSize: 14,
-  color: '#344054'
-};
-
-const pill = {
-  padding: '8px 10px',
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700
+  marginTop: 16,
+  flexWrap: 'wrap'
 };
 
 const saveButton = {
@@ -323,22 +433,75 @@ const saveButton = {
   cursor: 'pointer'
 };
 
-const emptyState = {
-  padding: 30,
-  borderRadius: 18,
-  background: '#faf8f3',
-  border: '1px dashed #d6d0c4',
-  display: 'grid',
-  gap: 10
+const secondaryButton = {
+  padding: '12px 16px',
+  borderRadius: 12,
+  border: '1px solid #d0d5dd',
+  background: '#fff',
+  color: '#101828',
+  fontWeight: 700,
+  cursor: 'pointer'
 };
 
-const emptyTitle = {
-  fontSize: 20,
+const helperText = {
+  marginTop: 0,
+  color: '#475467'
+};
+
+const emptyBox = {
+  padding: 18,
+  borderRadius: 14,
+  background: '#faf8f3',
+  border: '1px dashed #d6d0c4',
+  color: '#475467'
+};
+
+const connectionGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gap: 16
+};
+
+const connectionCard = {
+  background: '#fcfcfd',
+  border: '1px solid #eceff3',
+  borderRadius: 18,
+  padding: 18
+};
+
+const connectionTitle = {
+  fontSize: 16,
   fontWeight: 800,
   color: '#101828'
 };
 
-const emptyText = {
-  fontSize: 15,
-  color: '#475467'
+const connectionMeta = {
+  marginTop: 6,
+  fontSize: 13,
+  color: '#667085'
+};
+
+const transactionGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+  gap: 16
+};
+
+const transactionCard = {
+  background: '#fcfcfd',
+  border: '1px solid #eceff3',
+  borderRadius: 18,
+  padding: 18
+};
+
+const transactionTitle = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: '#101828'
+};
+
+const transactionMeta = {
+  marginTop: 6,
+  fontSize: 13,
+  color: '#667085'
 };
