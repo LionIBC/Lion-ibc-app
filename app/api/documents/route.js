@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'; import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -46,7 +47,8 @@ function mapDocument(row) {
     source: row.source || '',
     customer_id: row.customer_id || '',
     created_by: row.created_by || '',
-    created_at: row.created_at || null
+    created_at: row.created_at || null,
+    belegdatum: row.belegdatum || null
   };
 }
 
@@ -89,6 +91,11 @@ export async function GET(req) {
     const source = url.searchParams.get('source') || '';
     const customerId = url.searchParams.get('customer_id') || '';
     const category = url.searchParams.get('category') || '';
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const belegdatumFrom = url.searchParams.get('belegdatum_from') || '';
+    const belegdatumTo = url.searchParams.get('belegdatum_to') || '';
+    const createdFrom = url.searchParams.get('created_from') || '';
+    const createdTo = url.searchParams.get('created_to') || '';
 
     let query = supabase
       .from('documents')
@@ -107,13 +114,45 @@ export async function GET(req) {
       query = query.eq('category', category);
     }
 
+    if (belegdatumFrom) {
+      query = query.gte('belegdatum', belegdatumFrom);
+    }
+
+    if (belegdatumTo) {
+      query = query.lte('belegdatum', belegdatumTo);
+    }
+
+    if (createdFrom) {
+      query = query.gte('created_at', `${createdFrom}T00:00:00.000Z`);
+    }
+
+    if (createdTo) {
+      query = query.lte('created_at', `${createdTo}T23:59:59.999Z`);
+    }
+
     const { data, error } = await query;
 
     if (error) {
       throw new Error(error.message);
     }
 
-    const items = await addSignedUrls(data || []);
+    let items = await addSignedUrls(data || []);
+
+    if (q) {
+      items = items.filter((item) =>
+        [
+          item.file_name,
+          item.category,
+          item.category_label,
+          item.created_by,
+          item.source,
+          item.customer_id
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(q)
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -139,6 +178,7 @@ export async function POST(req) {
     const category = String(formData.get('category') || '').trim();
     const customerId = String(formData.get('customer_id') || '').trim();
     const createdBy = String(formData.get('created_by') || source).trim();
+    const belegdatum = String(formData.get('belegdatum') || '').trim() || null;
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -190,6 +230,7 @@ export async function POST(req) {
           source,
           customer_id: customerId || null,
           created_by: createdBy || null,
+          belegdatum,
           created_at: new Date().toISOString()
         })
         .select('*')
@@ -285,4 +326,3 @@ export async function DELETE(req) {
     );
   }
 }
-
