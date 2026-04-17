@@ -40,6 +40,12 @@ function retentionDate(value) {
   }
 }
 
+function money(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return '-';
+  return `${n.toFixed(2)} €`;
+}
+
 function groupByCategory(documents) {
   const map = new Map();
 
@@ -85,6 +91,7 @@ export default function InternDokumentePage() {
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [ocrRunningId, setOcrRunningId] = useState('');
   const [statusBox, setStatusBox] = useState(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -274,6 +281,42 @@ export default function InternDokumentePage() {
         type: 'error',
         message: error.message || 'Dokument konnte nicht gelöscht werden.'
       });
+    }
+  }
+
+  async function runOCR(doc) {
+    try {
+      setOcrRunningId(doc.id);
+      setStatusBox(null);
+
+      const res = await fetch('/api/documents/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file_path: doc.file_path,
+          document_id: doc.id
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'OCR fehlgeschlagen.');
+      }
+
+      setStatusBox({
+        type: 'success',
+        message: data?.message || 'OCR erfolgreich ausgeführt.'
+      });
+
+      await loadDocuments();
+    } catch (error) {
+      setStatusBox({
+        type: 'error',
+        message: error.message || 'OCR fehlgeschlagen.'
+      });
+    } finally {
+      setOcrRunningId('');
     }
   }
 
@@ -495,10 +538,25 @@ export default function InternDokumentePage() {
                             <div style={metaPill}>Aufbewahrung bis: {retentionDate(doc.created_at) || '-'}</div>
                             <div style={metaPill}>Hochgeladen von: {doc.created_by || '-'}</div>
                             <div style={metaPill}>Quelle: {doc.source || '-'}</div>
+                            <div style={metaPill}>OCR: {doc.ocr_processed ? 'Verarbeitet' : 'Offen'}</div>
+                            <div style={metaPill}>OCR Betrag: {doc.ocr_amount ? money(doc.ocr_amount) : '-'}</div>
+                            <div style={metaPill}>OCR Datum: {formatDate(doc.ocr_date) || '-'}</div>
+                            <div style={metaPill}>Rechnungsnr.: {doc.ocr_invoice_number || '-'}</div>
+                            <div style={metaPill}>Rechnung-ID: {doc.matched_invoice_id || '-'}</div>
+                            <div style={metaPill}>Bank-ID: {doc.matched_bank_transaction_id || '-'}</div>
                           </div>
                         </div>
 
                         <div style={documentActions}>
+                          <button
+                            type="button"
+                            onClick={() => runOCR(doc)}
+                            style={ocrButton}
+                            disabled={ocrRunningId === doc.id}
+                          >
+                            {ocrRunningId === doc.id ? 'OCR läuft…' : 'OCR'}
+                          </button>
+
                           {doc.open_url ? (
                             <a href={doc.open_url} target="_blank" rel="noreferrer" style={openLink}>
                               Öffnen
@@ -733,6 +791,17 @@ const secondaryButton = {
   color: '#101828',
   fontWeight: 700,
   cursor: 'pointer'
+};
+
+const ocrButton = {
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #b2ddff',
+  background: '#eff8ff',
+  color: '#175cd3',
+  fontWeight: 700,
+  cursor: 'pointer',
+  flexShrink: 0
 };
 
 const removeButton = {
