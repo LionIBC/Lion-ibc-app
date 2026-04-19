@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { logDocumentAuditEvent, runDocumentOCRById } from './ocr/core';
+import { logDocumentAuditEvent, runDocumentOCRById } from './core';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
