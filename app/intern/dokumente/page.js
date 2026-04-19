@@ -241,7 +241,10 @@ export default function InternDokumentePage() {
 
       setFiles([]);
       setCategory('');
-      setStatusBox({ type: 'success', message: 'Upload erfolgreich.' });
+      setStatusBox({
+        type: 'success',
+        message: data?.message || 'Upload erfolgreich.'
+      });
 
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -292,10 +295,7 @@ export default function InternDokumentePage() {
       const res = await fetch('/api/documents/ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          file_path: doc.file_path,
-          document_id: doc.id
-        })
+        body: JSON.stringify({ document_id: doc.id })
       });
 
       const data = await res.json();
@@ -339,7 +339,7 @@ export default function InternDokumentePage() {
           <div style={badge}>Intern</div>
           <h1 style={mainTitle}>Dokumentenverwaltung</h1>
           <p style={heroText}>
-            Dokumente können Mandanten zugeordnet, kategorisiert hochgeladen, geöffnet, heruntergeladen und intern verwaltet werden.
+            Dokumente können Mandanten zugeordnet, kategorisiert hochgeladen, automatisch verarbeitet, geöffnet und heruntergeladen werden.
           </p>
         </section>
 
@@ -388,13 +388,12 @@ export default function InternDokumentePage() {
             onDragOver={handleDragOver}
             onDragEnter={handleDragOver}
             onDragLeave={handleDragLeave}
-            style={{
-              ...dropzone,
-              ...(dragActive ? dropzoneActive : {})
-            }}
+            style={{ ...dropzone, ...(dragActive ? dropzoneActive : {}) }}
           >
             <div style={dropzoneTitle}>Dateien hier hineinziehen</div>
-            <div style={dropzoneText}>oder per Klick auswählen. Mehrere Dateien sind möglich.</div>
+            <div style={dropzoneText}>
+              oder per Klick auswählen. Mehrere Dateien sind möglich. OCR startet automatisch nach dem Upload.
+            </div>
 
             <input
               type="file"
@@ -455,7 +454,7 @@ export default function InternDokumentePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={input}
-                placeholder="Dateiname, Kategorie oder Benutzer"
+                placeholder="Dateiname, Kategorie, Benutzer oder Rechnungsnummer"
               />
             </div>
 
@@ -548,13 +547,17 @@ export default function InternDokumentePage() {
                         </div>
 
                         <div style={documentActions}>
+                          <a href={`/intern/dokumente/${doc.id}`} style={detailLink}>
+                            Details
+                          </a>
+
                           <button
                             type="button"
                             onClick={() => runOCR(doc)}
                             style={ocrButton}
                             disabled={ocrRunningId === doc.id}
                           >
-                            {ocrRunningId === doc.id ? 'OCR läuft…' : 'OCR'}
+                            {ocrRunningId === doc.id ? 'OCR läuft…' : 'OCR erneut'}
                           </button>
 
                           {doc.open_url ? (
@@ -791,6 +794,19 @@ const secondaryButton = {
   color: '#101828',
   fontWeight: 700,
   cursor: 'pointer'
+};
+
+const detailLink = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '10px 12px',
+  borderRadius: 10,
+  background: '#101828',
+  color: '#fff',
+  textDecoration: 'none',
+  fontWeight: 700,
+  fontSize: 14
 };
 
 const ocrButton = {
