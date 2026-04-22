@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { logDocumentAuditEvent, runDocumentOCRById } from './ocr/core';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,13 +30,20 @@ function buildStoragePath(customerId, category, fileName) {
   const safeCustomer = sanitizeFileName(customerId || 'allgemein');
   const safeCategory = sanitizeFileName(category || 'sonstiges');
   const uniquePart = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-
   return `${safeCustomer}/${safeCategory}/${uniquePart}-${safeName}`;
+}
+
+async function createSignedUrl(filePath, downloadName = null) {
+  if (!filePath) return null;
+  const options = downloadName ? { download: downloadName } : undefined;
+  const { data } = await supabase.storage
+    .from('documents')
+    .createSignedUrl(filePath, 60 * 60, options);
+  return data?.signedUrl || null;
 }
 
 function mapDocument(row) {
   if (!row) return null;
-
   return {
     id: row.id,
     file_name: row.file_name || '',
@@ -48,46 +56,52 @@ function mapDocument(row) {
     customer_id: row.customer_id || '',
     created_by: row.created_by || '',
     created_at: row.created_at || null,
-    belegdatum: row.belegdatum || null
+    belegdatum: row.belegdatum || null,
+    ocr_text: row.ocr_text || '',
+    ocr_processed: Boolean(row.ocr_processed),
+    ocr_mode: row.ocr_mode || '',
+    ocr_document_type: row.ocr_document_type || '',
+    ocr_confidence: row.ocr_confidence || '',
+    ocr_sender_name: row.ocr_sender_name || '',
+    ocr_recipient_name: row.ocr_recipient_name || '',
+    ocr_invoice_number: row.ocr_invoice_number || '',
+    ocr_net_amount: row.ocr_net_amount ?? null,
+    ocr_vat_amount: row.ocr_vat_amount ?? null,
+    ocr_vat_rate: row.ocr_vat_rate ?? null,
+    ocr_gross_amount: row.ocr_gross_amount ?? null,
+    ocr_amount: row.ocr_amount ?? null,
+    ocr_date: row.ocr_date || null,
+    ocr_due_date: row.ocr_due_date || null,
+    ocr_iban: row.ocr_iban || '',
+    matched_invoice_id: row.matched_invoice_id || null,
+    matched_bank_transaction_id: row.matched_bank_transaction_id || null,
+    parsed_transactions: Array.isArray(row.parsed_transactions) ? row.parsed_transactions : [],
+    csv_file_path: row.csv_file_path || ''
   };
 }
 
 async function addSignedUrls(rows) {
   const result = [];
-
   for (const row of rows || []) {
-    let open_url = null;
-    let download_url = null;
-
-    if (row.file_path) {
-      const { data: openData } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(row.file_path, 60 * 60);
-
-      const { data: downloadData } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(row.file_path, 60 * 60, {
-          download: row.file_name || true
-        });
-
-      open_url = openData?.signedUrl || null;
-      download_url = downloadData?.signedUrl || null;
-    }
+    const open_url = await createSignedUrl(row.file_path);
+    const download_url = await createSignedUrl(row.file_path, row.file_name || 'dokument');
+    const csv_download_url = row.csv_file_path
+      ? await createSignedUrl(row.csv_file_path, `${row.file_name || 'kontoauszug'}.csv`)
+      : null;
 
     result.push({
       ...mapDocument(row),
       open_url,
-      download_url
+      download_url,
+      csv_download_url
     });
   }
-
   return result;
 }
 
 export async function GET(req) {
   try {
     const url = new URL(req.url);
-
     const source = url.searchParams.get('source') || '';
     const customerId = url.searchParams.get('customer_id') || '';
     const category = url.searchParams.get('category') || '';
@@ -97,47 +111,20 @@ export async function GET(req) {
     const createdFrom = url.searchParams.get('created_from') || '';
     const createdTo = url.searchParams.get('created_to') || '';
 
-    let query = supabase
-      .from('documents')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase.from('documents').select('*').order('created_at', { ascending: false });
 
-    if (source) {
-      query = query.eq('source', source);
-    }
-
-    if (customerId) {
-      query = query.eq('customer_id', customerId);
-    }
-
-    if (category) {
-      query = query.eq('category', category);
-    }
-
-    if (belegdatumFrom) {
-      query = query.gte('belegdatum', belegdatumFrom);
-    }
-
-    if (belegdatumTo) {
-      query = query.lte('belegdatum', belegdatumTo);
-    }
-
-    if (createdFrom) {
-      query = query.gte('created_at', `${createdFrom}T00:00:00.000Z`);
-    }
-
-    if (createdTo) {
-      query = query.lte('created_at', `${createdTo}T23:59:59.999Z`);
-    }
+    if (source) query = query.eq('source', source);
+    if (customerId) query = query.eq('customer_id', customerId);
+    if (category) query = query.eq('category', category);
+    if (belegdatumFrom) query = query.gte('belegdatum', belegdatumFrom);
+    if (belegdatumTo) query = query.lte('belegdatum', belegdatumTo);
+    if (createdFrom) query = query.gte('created_at', `${createdFrom}T00:00:00.000Z`);
+    if (createdTo) query = query.lte('created_at', `${createdTo}T23:59:59.999Z`);
 
     const { data, error } = await query;
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
 
     let items = await addSignedUrls(data || []);
-
     if (q) {
       items = items.filter((item) =>
         [
@@ -146,24 +133,19 @@ export async function GET(req) {
           item.category_label,
           item.created_by,
           item.source,
-          item.customer_id
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(q)
+          item.customer_id,
+          item.ocr_invoice_number,
+          item.ocr_document_type,
+          item.ocr_sender_name,
+          item.ocr_recipient_name
+        ].join(' ').toLowerCase().includes(q)
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: items
-    });
+    return NextResponse.json({ success: true, data: items });
   } catch (error) {
     return NextResponse.json(
-      {
-        success: false,
-        message: error.message || 'Dokumente konnten nicht geladen werden.'
-      },
+      { success: false, message: error.message || 'Dokumente konnten nicht geladen werden.' },
       { status: 500 }
     );
   }
@@ -172,7 +154,6 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const formData = await req.formData();
-
     const files = formData.getAll('files');
     const source = String(formData.get('source') || 'unknown').trim();
     const category = String(formData.get('category') || '').trim();
@@ -181,60 +162,39 @@ export async function POST(req) {
     const belegdatum = String(formData.get('belegdatum') || '').trim() || null;
 
     if (!files || files.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Keine Dateien erhalten.'
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'Keine Dateien erhalten.' }, { status: 400 });
     }
 
     if (!category) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Bitte eine Dokumentart auswählen.'
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'Bitte eine Dokumentart auswählen.' }, { status: 400 });
     }
 
     const uploadedRows = [];
+    const ocrResults = [];
 
     for (const file of files) {
       if (!file || typeof file.arrayBuffer !== 'function') continue;
-
       const buffer = Buffer.from(await file.arrayBuffer());
       const filePath = buildStoragePath(customerId, category, file.name);
 
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, buffer, {
-          contentType: file.type || 'application/octet-stream',
-          upsert: false
-        });
+      const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, buffer, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false
+      });
+      if (uploadError) throw new Error(uploadError.message);
 
-      if (uploadError) {
-        throw new Error(uploadError.message);
-      }
-
-      const { data: insertedRow, error: dbError } = await supabase
-        .from('documents')
-        .insert({
-          file_name: file.name || 'Datei',
-          file_path: filePath,
-          file_url: '',
-          file_size: Number(file.size || 0),
-          category,
-          source,
-          customer_id: customerId || null,
-          created_by: createdBy || null,
-          belegdatum,
-          created_at: new Date().toISOString()
-        })
-        .select('*')
-        .single();
+      const { data: insertedRow, error: dbError } = await supabase.from('documents').insert({
+        file_name: file.name || 'Datei',
+        file_path: filePath,
+        file_url: '',
+        file_size: Number(file.size || 0),
+        category,
+        source,
+        customer_id: customerId || null,
+        created_by: createdBy || null,
+        belegdatum,
+        created_at: new Date().toISOString()
+      }).select('*').single();
 
       if (dbError) {
         await supabase.storage.from('documents').remove([filePath]);
@@ -242,21 +202,59 @@ export async function POST(req) {
       }
 
       uploadedRows.push(insertedRow);
+
+      await logDocumentAuditEvent({
+        documentId: insertedRow.id,
+        action: 'document_uploaded',
+        actor: createdBy || 'mitarbeiter',
+        actorType: 'user',
+        note: 'Dokument wurde hochgeladen.',
+        payload: {
+          category,
+          source,
+          customer_id: customerId || null,
+          file_name: file.name || 'Datei',
+          file_size: Number(file.size || 0)
+        }
+      });
+
+      try {
+        const ocrResult = await runDocumentOCRById(insertedRow.id);
+        ocrResults.push({
+          document_id: insertedRow.id,
+          success: true,
+          message: ocrResult.message
+        });
+      } catch (ocrError) {
+        await logDocumentAuditEvent({
+          documentId: insertedRow.id,
+          action: 'ocr_failed',
+          actor: 'system',
+          actorType: 'system',
+          note: ocrError.message || 'OCR beim Upload fehlgeschlagen.'
+        });
+        ocrResults.push({
+          document_id: insertedRow.id,
+          success: false,
+          message: ocrError.message || 'OCR beim Upload fehlgeschlagen.'
+        });
+      }
     }
 
-    const withUrls = await addSignedUrls(uploadedRows);
+    const { data: freshRows, error: freshError } = await supabase.from('documents').select('*').in('id', uploadedRows.map((row) => row.id));
+    if (freshError) throw new Error(freshError.message);
+
+    const withUrls = await addSignedUrls(freshRows || uploadedRows);
 
     return NextResponse.json({
       success: true,
-      message: 'Upload erfolgreich.',
-      data: withUrls
+      message: 'Upload erfolgreich. OCR wurde automatisch gestartet.',
+      data: withUrls,
+      ocr_results: ocrResults
     });
   } catch (error) {
     return NextResponse.json(
-      {
-        success: false,
-        message: error.message || 'Upload fehlgeschlagen.'
-      },
+      { success: false, message: error.message || 'Upload fehlgeschlagen.' },
       { status: 500 }
     );
   }
@@ -268,60 +266,35 @@ export async function DELETE(req) {
     const id = url.searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Dokument-ID fehlt.'
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'Dokument-ID fehlt.' }, { status: 400 });
     }
 
-    const { data: existingDoc, error: loadError } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('id', id)
-      .single();
-
+    const { data: existingDoc, error: loadError } = await supabase.from('documents').select('*').eq('id', id).single();
     if (loadError || !existingDoc) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Dokument wurde nicht gefunden.'
-        },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: 'Dokument wurde nicht gefunden.' }, { status: 404 });
     }
 
-    if (existingDoc.file_path) {
-      const { error: storageError } = await supabase.storage
-        .from('documents')
-        .remove([existingDoc.file_path]);
-
-      if (storageError) {
-        throw new Error(storageError.message);
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Dokument wurde gelöscht.'
+    await logDocumentAuditEvent({
+      documentId: existingDoc.id,
+      action: 'document_delete_requested',
+      actor: 'mitarbeiter',
+      actorType: 'user',
+      note: 'Löschung wurde ausgelöst.'
     });
+
+    const removePaths = [existingDoc.file_path, existingDoc.csv_file_path].filter(Boolean);
+    if (removePaths.length) {
+      const { error: storageError } = await supabase.storage.from('documents').remove(removePaths);
+      if (storageError) throw new Error(storageError.message);
+    }
+
+    const { error: deleteError } = await supabase.from('documents').delete().eq('id', id);
+    if (deleteError) throw new Error(deleteError.message);
+
+    return NextResponse.json({ success: true, message: 'Dokument wurde gelöscht.' });
   } catch (error) {
     return NextResponse.json(
-      {
-        success: false,
-        message: error.message || 'Dokument konnte nicht gelöscht werden.'
-      },
+      { success: false, message: error.message || 'Dokument konnte nicht gelöscht werden.' },
       { status: 500 }
     );
   }
