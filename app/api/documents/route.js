@@ -309,6 +309,7 @@ export async function POST(req) {
       const insertPayload = {
   file_name: file.name || 'Datei',
   original_name: file.name || 'Datei',
+  stored_name: file.name || 'Datei',
   file_path: filePath,
   file_url: '',
   file_size: Number(file.size || 0),
@@ -321,6 +322,7 @@ export async function POST(req) {
   belegdatum,
   created_at: new Date().toISOString()
 };
+
 
 
       const { data: insertedRow, error: dbError } = await supabase
