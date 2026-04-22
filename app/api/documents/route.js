@@ -307,19 +307,21 @@ export async function POST(req) {
       }
 
       const insertPayload = {
-        file_name: file.name || 'Datei',
-        file_path: filePath,
-        file_url: '',
-        file_size: Number(file.size || 0),
-        category,
-        source,
-        customer_id: customerId,
-        kundennummer: customerSnapshot.kundennummer,
-        kundenname: customerSnapshot.kundenname,
-        created_by: createdBy || null,
-        belegdatum,
-        created_at: new Date().toISOString()
-      };
+  file_name: file.name || 'Datei',
+  original_name: file.name || 'Datei',
+  file_path: filePath,
+  file_url: '',
+  file_size: Number(file.size || 0),
+  category,
+  source,
+  customer_id: customerId,
+  kundennummer: customerSnapshot.kundennummer,
+  kundenname: customerSnapshot.kundenname,
+  created_by: createdBy || null,
+  belegdatum,
+  created_at: new Date().toISOString()
+};
+
 
       const { data: insertedRow, error: dbError } = await supabase
         .from('documents')
