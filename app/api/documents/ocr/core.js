@@ -1,6 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import Tesseract from 'tesseract.js';
-import pdfParse from 'pdf-parse';
+import { createClient } from '@supabase/supabase-js'; import Tesseract from 'tesseract.js'; import pdfParse from 'pdf-parse';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -38,12 +36,10 @@ function toNumber(value, fallback = 0) {
     .trim();
 
   const n = Number(cleaned);
-  return Number.isFinite(n) ? n : fallback;
-}
+  return Number.isFinite(n) ? n : fallback; }
 
 function normalizeText(value) {
-  return String(value || '').toLowerCase().trim();
-}
+  return String(value || '').toLowerCase().trim(); }
 
 function parseEuropeanDate(value) {
   if (!value) return null;
@@ -74,51 +70,44 @@ function extractGrossAmount(text) {
     /(?:gesamtbetrag|gesamt|summe|total|importe\s*total|zu\s*zahlen|brutto)\s*[:\-]?\s*([0-9\.\,]+)\s?(?:€|eur)?/i,
     /([0-9\.\,]+)\s?(?:€|eur)/i
   ]);
-  return value ? toNumber(value, null) : null;
-}
+  return value ? toNumber(value, null) : null; }
 
 function extractNetAmount(text) {
   const value = extractFirstMatch(text, [
     /(?:netto|net amount|base imponible)\s*[:\-]?\s*([0-9\.\,]+)\s?(?:€|eur)?/i
   ]);
-  return value ? toNumber(value, null) : null;
-}
+  return value ? toNumber(value, null) : null; }
 
 function extractVatAmount(text) {
   const value = extractFirstMatch(text, [
     /(?:mwst|ust|umsatzsteuer|iva|vat)\s*[:\-]?\s*([0-9\.\,]+)\s?(?:€|eur)?/i
   ]);
-  return value ? toNumber(value, null) : null;
-}
+  return value ? toNumber(value, null) : null; }
 
 function extractVatRate(text) {
   const value = extractFirstMatch(text, [
     /(?:mwst|ust|iva|vat)\s*[:\-]?\s*([0-9]{1,2}(?:[.,][0-9]{1,2})?)\s*%/i,
     /\b([0-9]{1,2}(?:[.,][0-9]{1,2})?)\s*%\s*(?:mwst|ust|iva|vat)\b/i
   ]);
-  return value ? toNumber(value, null) : null;
-}
+  return value ? toNumber(value, null) : null; }
 
 function extractDate(text) {
   const value = extractFirstMatch(text, [
     /(?:rechnungsdatum|datum|invoice\s*date|fecha)\s*[:\-]?\s*(\d{2}[.\-/]\d{2}[.\-/]\d{4})/i,
     /\b(\d{2}[.\-/]\d{2}[.\-/]\d{4})\b/
   ]);
-  return value ? parseEuropeanDate(value) : null;
-}
+  return value ? parseEuropeanDate(value) : null; }
 
 function extractDueDate(text) {
   const value = extractFirstMatch(text, [
     /(?:fällig\s*am|zahlbar\s*bis|due\s*date|fecha\s*de\s*vencimiento|zahlungsfrist)\s*[:\-]?\s*(\d{2}[.\-/]\d{2}[.\-/]\d{4})/i
   ]);
-  return value ? parseEuropeanDate(value) : null;
-}
+  return value ? parseEuropeanDate(value) : null; }
 
 function extractIban(text) {
   const compact = String(text || '').replace(/\s+/g, '');
   const match = compact.match(/\b([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/i);
-  return match?.[1]?.toUpperCase() || null;
-}
+  return match?.[1]?.toUpperCase() || null; }
 
 function extractSenderName(text) {
   return extractFirstMatch(text, [
@@ -134,6 +123,7 @@ function extractRecipientName(text) {
 
 function extractDocumentType(text, fallbackCategory = '') {
   const raw = String(text || '').toLowerCase();
+
   if (fallbackCategory === 'kontoauszuege') return 'kontoauszug';
   if (fallbackCategory === 'vertraege') return 'vertrag';
   if (fallbackCategory === 'eingangsrechnung' || fallbackCategory === 'ausgangsrechnung') return 'rechnung';
@@ -152,18 +142,27 @@ function detectConfidence(ocrData) {
   if (ocrData.iban) score += 20;
   if (ocrData.senderName) score += 5;
   if (ocrData.recipientName) score += 5;
+
   if (score >= 70) return 'hoch';
   if (score >= 40) return 'mittel';
   return 'niedrig';
 }
 
 function parseBankStatementTransactions(text) {
-  const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
   const transactions = [];
 
   for (const line of lines) {
-    const match = line.match(/^(\d{2}[.\-/]\d{2}[.\-/]\d{4})\s+(.+?)\s+(-?[0-9\.\,]+)\s*(?:€|EUR)?(?:\s+([0-9\.\,]+)\s*(?:€|EUR)?)?$/i);
+    const match = line.match(
+      /^(\d{2}[.\-/]\d{2}[.\-/]\d{4})\s+(.+?)\s+(-?[0-9\.\,]+)\s*(?:€|EUR)?(?:\s+([0-9\.\,]+)\s*(?:€|EUR)?)?$/i
+    );
+
     if (!match) continue;
+
     transactions.push({
       date: parseEuropeanDate(match[1]),
       booking_text: match[2]?.trim() || '',
@@ -180,7 +179,17 @@ function parseBankStatementTransactions(text) {
 }
 
 function generateTransactionsCsv(transactions) {
-  const header = ['Datum', 'Buchungstext', 'Verwendungszweck', 'Betrag', 'Währung', 'IBAN', 'Name', 'Saldo'];
+  const header = [
+    'Datum',
+    'Buchungstext',
+    'Verwendungszweck',
+    'Betrag',
+    'Währung',
+    'IBAN',
+    'Name',
+    'Saldo'
+  ];
+
   const rows = transactions.map((t) => [
     t.date || '',
     String(t.booking_text || '').replace(/;/g, ','),
@@ -191,21 +200,79 @@ function generateTransactionsCsv(transactions) {
     String(t.name || '').replace(/;/g, ','),
     t.balance ?? ''
   ]);
-  return [header, ...rows].map((row) => row.join(';')).join('\n');
+
+  return [header, ...rows].map((row) => row.join(';')).join('\n'); }
+
+async function getDocument(documentId) {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('id', documentId)
+    .single();
+
+  if (error || !data) {
+    throw new Error('Dokument wurde nicht gefunden.');
+  }
+
+  return data;
 }
+
+async function downloadDocument(filePath) {
+  const { data, error } = await supabase.storage
+    .from('documents')
+    .download(filePath);
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Dokument konnte nicht geladen werden.');
+  }
+
+  return data;
+}
+
+async function extractTextFromFile(file, fileName) {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const lowerName = String(fileName || '').toLowerCase();
+  const mimeType = file.type || '';
+
+  if (mimeType === 'application/pdf' || lowerName.endsWith('.pdf')) {
+    try {
+      const parsed = await pdfParse(buffer);
+      const text = String(parsed?.text || '').trim();
+
+      if (text) {
+        return { text, mode: 'pdf_text' };
+      }
+    } catch (error) {
+      console.error('pdf parse failed:', error);
+    }
+
+    throw new Error(
+      'Dieses Paket verarbeitet PDF mit eingebettetem Text. Für gescannte PDF-OCR bitte zusätzlich das Renderer-Paket einbauen.'
+    );
+  }
+
+  const { data: ocrResult } = await Tesseract.recognize(buffer, 'deu+eng+spa');
+  return { text: String(ocrResult?.text || '').trim(), mode: 'image_ocr' }; }
 
 async function uploadTransactionsCsv(document, transactions) {
   if (!transactions.length) return { csvFilePath: null };
+
   const csv = generateTransactionsCsv(transactions);
   const filePath = `exports/${document.id}/kontoauszug.csv`;
   const buffer = Buffer.from(csv, 'utf-8');
 
-  const { error } = await supabase.storage.from('documents').upload(filePath, buffer, {
-    contentType: 'text/csv',
-    upsert: true
-  });
+  const { error } = await supabase.storage
+    .from('documents')
+    .upload(filePath, buffer, {
+      contentType: 'text/csv',
+      upsert: true
+    });
 
-  if (error) throw new Error(error.message || 'CSV konnte nicht gespeichert werden.');
+  if (error) {
+    throw new Error(error.message || 'CSV konnte nicht gespeichert werden.');
+  }
+
   return { csvFilePath: filePath };
 }
 
@@ -213,82 +280,164 @@ async function findInvoiceMatch(ocrData) {
   const { invoiceNumber, grossAmount } = ocrData;
 
   if (invoiceNumber) {
-    const { data } = await supabase.from('invoice_documents').select('*').ilike('invoice_number', `%${invoiceNumber}%`).limit(1);
-    if (data?.[0]) return { invoice: data[0], matchType: 'invoice_number' };
+    const { data } = await supabase
+      .from('invoice_documents')
+      .select('*')
+      .ilike('invoice_number', `%${invoiceNumber}%`)
+      .limit(1);
+
+    if (data?.[0]) {
+      return { invoice: data[0], matchType: 'invoice_number' };
+    }
   }
 
   if (grossAmount !== null) {
-    const { data } = await supabase.from('invoice_documents').select('*').in('status', ['draft', 'approved', 'issued', 'final', 'part_paid', 'overdue']);
-    const match = (data || []).find((row) => Math.abs(toNumber(row.total, 0)) === Math.abs(toNumber(grossAmount, 0)));
-    if (match) return { invoice: match, matchType: 'amount' };
+    const { data } = await supabase
+      .from('invoice_documents')
+      .select('*')
+      .in('status', ['draft', 'approved', 'issued', 'final', 'part_paid', 'overdue']);
+
+    const match = (data || []).find((row) => {
+      const total = Math.abs(toNumber(row.total, 0));
+      return total === Math.abs(toNumber(grossAmount, 0));
+    });
+
+    if (match) {
+      return { invoice: match, matchType: 'amount' };
+    }
   }
 
-  return { invoice: null, matchType: null };
-}
+  return { invoice: null, matchType: null }; }
 
 async function findBankTransactionMatch(ocrData, invoice) {
   const { grossAmount, iban, invoiceNumber } = ocrData;
-  const { data } = await supabase.from('bank_transactions').select('*').order('booking_date', { ascending: false }).limit(200);
+
+  const { data } = await supabase
+    .from('bank_transactions')
+    .select('*')
+    .order('booking_date', { ascending: false })
+    .limit(200);
+
   const transactions = data || [];
 
   const byInvoiceNumber = transactions.find((row) => {
     const ref = normalizeText(`${row.remittance_information || ''} ${row.bank_reference || ''}`);
-    const amountMatches = grossAmount !== null && Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
+    const amountMatches =
+      grossAmount !== null &&
+      Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
+
     return invoiceNumber && amountMatches && ref.includes(normalizeText(invoiceNumber));
   });
+
   if (byInvoiceNumber) return byInvoiceNumber;
 
   const bySuggestedInvoice = transactions.find((row) => {
-    const amountMatches = grossAmount !== null && Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
+    const amountMatches =
+      grossAmount !== null &&
+      Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
+
     return invoice?.id && row.suggested_invoice_id === invoice.id && amountMatches;
   });
+
   if (bySuggestedInvoice) return bySuggestedInvoice;
 
-  return transactions.find((row) => {
-    const ibanMatch = iban && normalizeText(row.iban || row.account_iban || '').includes(normalizeText(iban));
-    const amountMatch = grossAmount !== null && Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
-    return ibanMatch || amountMatch;
-  }) || null;
+  return (
+    transactions.find((row) => {
+      const ibanMatch =
+        iban &&
+        normalizeText(row.iban || row.account_iban || '').includes(normalizeText(iban));
+
+      const amountMatch =
+        grossAmount !== null &&
+        Math.abs(toNumber(row.amount, 0)) === Math.abs(toNumber(grossAmount, 0));
+
+      return ibanMatch || amountMatch;
+    }) || null
+  );
 }
 
 async function applyPaymentIfNeeded(invoice, bankTransaction, ocrData, documentId) {
-  if (!invoice || !bankTransaction) return { autoBooked: false, reason: 'invoice_or_bank_missing' };
-  if (bankTransaction.matched_invoice_id) return { autoBooked: false, reason: 'bank_already_matched' };
-
-  const { data: existingPayment } = await supabase.from('invoice_payments').select('id').eq('bank_transaction_id', bankTransaction.id).limit(1).maybeSingle();
-
-  if (!existingPayment) {
-    const { error: paymentError } = await supabase.from('invoice_payments').insert({
-      invoice_id: invoice.id,
-      payment_date: bankTransaction.booking_date || ocrData.date || null,
-      amount: Math.abs(toNumber(bankTransaction.amount || ocrData.grossAmount || 0)),
-      currency: bankTransaction.currency || 'EUR',
-      payment_source: 'ocr_auto_booking',
-      reference: bankTransaction.bank_reference || bankTransaction.remittance_information || ocrData.invoiceNumber || '',
-      bank_transaction_id: bankTransaction.id,
-      is_manual: false
-    });
-    if (paymentError) throw new Error(paymentError.message || 'OCR-Zahlung konnte nicht gespeichert werden.');
+  if (!invoice || !bankTransaction) {
+    return { autoBooked: false, reason: 'invoice_or_bank_missing' };
   }
 
-  const { data: payments, error: paymentsError } = await supabase.from('invoice_payments').select('*').eq('invoice_id', invoice.id);
-  if (paymentsError) throw new Error(paymentsError.message || 'Zahlungen konnten nicht geladen werden.');
+  if (bankTransaction.matched_invoice_id) {
+    return { autoBooked: false, reason: 'bank_already_matched' };
+  }
 
-  const paid = (payments || []).reduce((sum, row) => sum + Math.abs(toNumber(row.amount, 0)), 0);
+  const { data: existingPayment } = await supabase
+    .from('invoice_payments')
+    .select('id')
+    .eq('bank_transaction_id', bankTransaction.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!existingPayment) {
+    const { error: paymentError } = await supabase
+      .from('invoice_payments')
+      .insert({
+        invoice_id: invoice.id,
+        payment_date: bankTransaction.booking_date || ocrData.date || null,
+        amount: Math.abs(toNumber(bankTransaction.amount || ocrData.grossAmount || 0)),
+        currency: bankTransaction.currency || 'EUR',
+        payment_source: 'ocr_auto_booking',
+        reference:
+          bankTransaction.bank_reference ||
+          bankTransaction.remittance_information ||
+          ocrData.invoiceNumber ||
+          '',
+        bank_transaction_id: bankTransaction.id,
+        is_manual: false
+      });
+
+    if (paymentError) {
+      throw new Error(paymentError.message || 'OCR-Zahlung konnte nicht gespeichert werden.');
+    }
+  }
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from('invoice_payments')
+    .select('*')
+    .eq('invoice_id', invoice.id);
+
+  if (paymentsError) {
+    throw new Error(paymentsError.message || 'Zahlungen konnten nicht geladen werden.');
+  }
+
+  const paid = (payments || []).reduce(
+    (sum, row) => sum + Math.abs(toNumber(row.amount, 0)),
+    0
+  );
+
   const total = Math.abs(toNumber(invoice.total, 0));
   const newStatus = paid >= total ? 'paid' : 'part_paid';
 
-  const { error: invoiceUpdateError } = await supabase.from('invoice_documents').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', invoice.id);
-  if (invoiceUpdateError) throw new Error(invoiceUpdateError.message || 'Rechnung konnte nicht aktualisiert werden.');
+  const { error: invoiceUpdateError } = await supabase
+    .from('invoice_documents')
+    .update({
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', invoice.id);
 
-  const { error: bankUpdateError } = await supabase.from('bank_transactions').update({
-    matched_invoice_id: invoice.id,
-    match_status: 'ocr_auto_matched',
-    suggested_invoice_id: invoice.id,
-    suggested_invoice_number: invoice.invoice_number || null,
-    suggested_customer_name: invoice.kundenname || null
-  }).eq('id', bankTransaction.id);
-  if (bankUpdateError) throw new Error(bankUpdateError.message || 'Banktransaktion konnte nicht aktualisiert werden.');
+  if (invoiceUpdateError) {
+    throw new Error(invoiceUpdateError.message || 'Rechnung konnte nicht aktualisiert werden.');
+  }
+
+  const { error: bankUpdateError } = await supabase
+    .from('bank_transactions')
+    .update({
+      matched_invoice_id: invoice.id,
+      match_status: 'ocr_auto_matched',
+      suggested_invoice_id: invoice.id,
+      suggested_invoice_number: invoice.invoice_number || null,
+      suggested_customer_name: invoice.kundenname || null
+    })
+    .eq('id', bankTransaction.id);
+
+  if (bankUpdateError) {
+    throw new Error(bankUpdateError.message || 'Banktransaktion konnte nicht aktualisiert werden.');
+  }
 
   await supabase.from('invoice_events').insert({
     invoice_id: invoice.id,
@@ -317,14 +466,22 @@ async function applyPaymentIfNeeded(invoice, bankTransaction, ocrData, documentI
     }
   });
 
-  return { autoBooked: true, reason: 'success', invoiceStatus: newStatus };
-}
+  return { autoBooked: true, reason: 'success', invoiceStatus: newStatus }; }
 
 export async function runDocumentOCRById(documentId) {
   const document = await getDocument(documentId);
-  if (!document.file_path) throw new Error('Dokument hat keinen Dateipfad.');
 
-  await logDocumentAuditEvent({ documentId, action: 'ocr_started', actor: 'system', actorType: 'system', note: 'OCR wurde gestartet.' });
+  if (!document.file_path) {
+    throw new Error('Dokument hat keinen Dateipfad.');
+  }
+
+  await logDocumentAuditEvent({
+    documentId,
+    action: 'ocr_started',
+    actor: 'system',
+    actorType: 'system',
+    note: 'OCR wurde gestartet.'
+  });
 
   const file = await downloadDocument(document.file_path);
   const extracted = await extractTextFromFile(file, document.file_name);
@@ -335,8 +492,13 @@ export async function runDocumentOCRById(documentId) {
   let vatRate = extractVatRate(text);
   let grossAmount = extractGrossAmount(text);
 
-  if (grossAmount !== null && netAmount !== null && vatAmount === null) vatAmount = Number((grossAmount - netAmount).toFixed(2));
-  if (grossAmount !== null && netAmount === null && vatAmount !== null) netAmount = Number((grossAmount - vatAmount).toFixed(2));
+  if (grossAmount !== null && netAmount !== null && vatAmount === null) {
+    vatAmount = Number((grossAmount - netAmount).toFixed(2));
+  }
+
+  if (grossAmount !== null && netAmount === null && vatAmount !== null) {
+    netAmount = Number((grossAmount - vatAmount).toFixed(2));
+  }
 
   const ocrData = {
     documentType: extractDocumentType(text, document.category),
@@ -353,21 +515,28 @@ export async function runDocumentOCRById(documentId) {
   };
 
   const confidence = detectConfidence(ocrData);
-  const transactions = ocrData.documentType === 'kontoauszug' || document.category === 'kontoauszuege'
-    ? parseBankStatementTransactions(text)
-    : [];
+
+  const transactions =
+    ocrData.documentType === 'kontoauszug' || document.category === 'kontoauszuege'
+      ? parseBankStatementTransactions(text)
+      : [];
 
   let csvFilePath = null;
+
   if (transactions.length > 0) {
     const csvUpload = await uploadTransactionsCsv(document, transactions);
     csvFilePath = csvUpload.csvFilePath;
+
     await logDocumentAuditEvent({
       documentId,
       action: 'csv_generated',
       actor: 'system',
       actorType: 'system',
       note: 'CSV aus Kontoauszug erzeugt.',
-      payload: { transaction_count: transactions.length, csv_file_path: csvFilePath }
+      payload: {
+        transaction_count: transactions.length,
+        csv_file_path: csvFilePath
+      }
     });
   }
 
@@ -376,8 +545,14 @@ export async function runDocumentOCRById(documentId) {
 
   let autoBooked = false;
   let invoiceStatus = null;
+
   if (invoiceMatch.invoice && bankMatch && ocrData.documentType === 'rechnung') {
-    const booking = await applyPaymentIfNeeded(invoiceMatch.invoice, bankMatch, ocrData, documentId);
+    const booking = await applyPaymentIfNeeded(
+      invoiceMatch.invoice,
+      bankMatch,
+      ocrData,
+      documentId
+    );
     autoBooked = booking.autoBooked;
     invoiceStatus = booking.invoiceStatus || null;
   }
@@ -401,20 +576,30 @@ export async function runDocumentOCRById(documentId) {
     ocr_iban: ocrData.iban,
     matched_invoice_id: invoiceMatch.invoice?.id || null,
     matched_bank_transaction_id: bankMatch?.id || null,
-    parsed_transactions: transactions.length ? transactions : null,
+    parsed_transactions: transactions.length ? transactions : [],
     csv_file_path: csvFilePath,
     updated_at: new Date().toISOString()
   };
 
-  const { error: updateError } = await supabase.from('documents').update(updatePayload).eq('id', documentId);
-  if (updateError) throw new Error(updateError.message || 'OCR-Daten konnten nicht gespeichert werden.');
+  const { error: updateError } = await supabase
+    .from('documents')
+    .update(updatePayload)
+    .eq('id', documentId);
+
+  if (updateError) {
+    throw new Error(updateError.message || 'OCR-Daten konnten nicht gespeichert werden.');
+  }
 
   await logDocumentAuditEvent({
     documentId,
     action: 'ocr_completed',
     actor: 'system',
     actorType: 'system',
-    note: autoBooked ? 'OCR abgeschlossen und automatisch zugeordnet.' : 'OCR abgeschlossen.',
+    note: autoBooked
+      ? 'OCR abgeschlossen und automatisch zugeordnet.'
+      : transactions.length > 0
+        ? 'OCR abgeschlossen und CSV erzeugt.'
+        : 'OCR abgeschlossen.',
     payload: {
       ocr_mode: extracted.mode,
       ocr_document_type: ocrData.documentType,
@@ -424,7 +609,8 @@ export async function runDocumentOCRById(documentId) {
       matched_invoice_id: invoiceMatch.invoice?.id || null,
       matched_bank_transaction_id: bankMatch?.id || null,
       auto_booked: autoBooked,
-      transaction_count: transactions.length
+      transaction_count: transactions.length,
+      csv_file_path: csvFilePath
     }
   });
 
