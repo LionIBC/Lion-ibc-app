@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'; import { createClient } from '@supabase/supabase-js'; import { logDocumentAuditEvent, runDocumentOCRById } from './ocr/core.js';
+import { NextResponse } from 'next/server'; import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,6 +14,29 @@ const CATEGORY_LABELS = {
   stammdaten: 'Stammdaten',
   sonstiges: 'Sonstiges'
 };
+
+async function logDocumentAuditEventSafe({
+  documentId,
+  action,
+  actor = 'system',
+  actorType = 'system',
+  note = '',
+  payload = null
+}) {
+  try {
+    await supabase.from('document_audit_logs').insert({
+      document_id: documentId,
+      action,
+      actor,
+      actor_type: actorType,
+      note,
+      payload,
+      created_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('document audit insert failed', error);
+  }
+}
 
 function sanitizeFileName(name) {
   return String(name || 'datei')
@@ -263,7 +286,7 @@ export async function POST(req) {
 
       uploadedRows.push(insertedRow);
 
-      await logDocumentAuditEvent({
+      await logDocumentAuditEventSafe({
         documentId: insertedRow.id,
         action: 'document_uploaded',
         actor: createdBy || 'mitarbeiter',
@@ -279,6 +302,8 @@ export async function POST(req) {
       });
 
       try {
+        const { runDocumentOCRById } = await import('./ocr/core.js');
+
         const ocrResult = await runDocumentOCRById(insertedRow.id);
         ocrResults.push({
           document_id: insertedRow.id,
@@ -288,7 +313,7 @@ export async function POST(req) {
       } catch (ocrError) {
         console.error('OCR after upload failed:', ocrError);
 
-        await logDocumentAuditEvent({
+        await logDocumentAuditEventSafe({
           documentId: insertedRow.id,
           action: 'ocr_failed',
           actor: 'system',
@@ -365,7 +390,7 @@ export async function DELETE(req) {
       );
     }
 
-    await logDocumentAuditEvent({
+    await logDocumentAuditEventSafe({
       documentId: existingDoc.id,
       action: 'document_delete_requested',
       actor: 'mitarbeiter',
