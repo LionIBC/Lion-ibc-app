@@ -71,6 +71,30 @@ async function createSignedUrl(filePath, downloadName = null) {
   return data?.signedUrl || null;
 }
 
+async function getCustomerSnapshot(customerId) {
+  if (!customerId) {
+    return {
+      kundennummer: null,
+      kundenname: null
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, kundennummer, firmenname')
+    .eq('id', customerId)
+    .single();
+
+  if (error || !data) {
+    throw new Error('Mandant konnte nicht geladen werden.');
+  }
+
+  return {
+    kundennummer: data.kundennummer || null,
+    kundenname: data.firmenname || null
+  };
+}
+
 function mapDocument(row) {
   if (!row) return null;
 
@@ -88,6 +112,8 @@ function mapDocument(row) {
     category_label: CATEGORY_LABELS[row.category] || 'Sonstiges',
     source: row.source || '',
     customer_id: row.customer_id || '',
+    kundennummer: row.kundennummer || '',
+    kundenname: row.kundenname || '',
     created_by: row.created_by || '',
     created_at: row.created_at || null,
     belegdatum: row.belegdatum || null,
@@ -189,6 +215,8 @@ export async function GET(req) {
           item.created_by,
           item.source,
           item.customer_id,
+          item.kundennummer,
+          item.kundenname,
           item.ocr_invoice_number,
           item.ocr_document_type,
           item.ocr_sender_name,
@@ -242,6 +270,22 @@ export async function POST(req) {
       );
     }
 
+    if (!customerId) {
+      return NextResponse.json(
+        { success: false, message: 'Bitte zuerst einen Mandanten auswählen.' },
+        { status: 400 }
+      );
+    }
+
+    const customerSnapshot = await getCustomerSnapshot(customerId);
+
+    if (!customerSnapshot.kundennummer) {
+      return NextResponse.json(
+        { success: false, message: 'Für den ausgewählten Mandanten fehlt die Kundennummer.' },
+        { status: 400 }
+      );
+    }
+
     const uploadedRows = [];
     const ocrResults = [];
 
@@ -262,20 +306,24 @@ export async function POST(req) {
         throw new Error(uploadError.message || 'Datei konnte nicht hochgeladen werden.');
       }
 
+      const insertPayload = {
+        file_name: file.name || 'Datei',
+        file_path: filePath,
+        file_url: '',
+        file_size: Number(file.size || 0),
+        category,
+        source,
+        customer_id: customerId,
+        kundennummer: customerSnapshot.kundennummer,
+        kundenname: customerSnapshot.kundenname,
+        created_by: createdBy || null,
+        belegdatum,
+        created_at: new Date().toISOString()
+      };
+
       const { data: insertedRow, error: dbError } = await supabase
         .from('documents')
-        .insert({
-          file_name: file.name || 'Datei',
-          file_path: filePath,
-          file_url: '',
-          file_size: Number(file.size || 0),
-          category,
-          source,
-          customer_id: customerId || null,
-          created_by: createdBy || null,
-          belegdatum,
-          created_at: new Date().toISOString()
-        })
+        .insert(insertPayload)
         .select('*')
         .single();
 
@@ -295,7 +343,9 @@ export async function POST(req) {
         payload: {
           category,
           source,
-          customer_id: customerId || null,
+          customer_id: customerId,
+          kundennummer: customerSnapshot.kundennummer,
+          kundenname: customerSnapshot.kundenname,
           file_name: file.name || 'Datei',
           file_size: Number(file.size || 0)
         }
@@ -435,3 +485,4 @@ export async function DELETE(req) {
     );
   }
 }
+
